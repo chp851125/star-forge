@@ -1,0 +1,34 @@
+/* --aura 註冊為顏色,切換時可漸變 */
+@property --aura { syntax: '<color>'; inherits: true; initial-value: #2de2e6; }
+
+.weapon, .aura-scope { transition: --aura .6s ease; }
+
+/* 光環強度隨星級增加(呼吸動畫用 opacity,強度用 fill-opacity) */
+.w-fade-in .w-breathe { fill-opacity: var(--strength, 1); }
+
+@keyframes w-shine { from { transform: translateY(20px) } to { transform: translateY(var(--shine-to)) } }
+@keyframes w-breathe { 50% { opacity: .5; transform: scale(1.1) } }
+@keyframes w-rays { 50% { opacity: .45 } }
+@keyframes w-bob { 50% { transform: translateY(-8px) } }
+@keyframes w-twinkle { 50% { transform: scale(.3); opacity: .4 } }
+@keyframes w-fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes w-fade-out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes w-piece { 0% { opacity: 1; transform: none } 25% { opacity: 1; transform: scale(1.04) } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) } }
+@keyframes w-red-pulse { from { opacity: .9; transform: scale(.3) } to { opacity: 0; transform: scale(1.8) } }
+
+.w-shine { animation: w-shine 2.8s linear infinite; }
+.w-breathe { animation: w-breathe 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.w-rays { animation: w-rays 3s ease-in-out infinite; }
+.w-bob { animation: w-bob 3.4s ease-in-out infinite; }
+.w-twinkle { animation: w-twinkle 1.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.w-fade-in { animation: w-fade-in .45s ease-out; }
+.w-fade-out { animation: w-fade-out .45s ease-in forwards; }
+.w-piece { animation: w-piece .9s ease-in forwards; }
+.w-red-pulse { animation: w-red-pulse .9s ease-out forwards; transform-box: fill-box; transform-origin: center; }
+
+.w-body { transition: filter .25s ease; }
+.w-dropped { filter: grayscale(1) sepia(.7) hue-rotate(-45deg) saturate(2.2) brightness(.85); }
+.w-dropped .w-shine { animation-play-state: paused; }
+
+.fx-paused *, .fx-paused *::before, .fx-paused *::after { animation-play-state: paused !important; }
+[data-fx='off'] *, [data-fx='off'] *::before, [data-fx='off'] *::after { animation: none !important; transition: none !important; }

@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { min-height: 100%; }
+body { background: #070b16; color: #e6f7ff; margin: 0; }
+
+@layer components {
+  .bevel { clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
+  .panel { @apply bevel bg-panel shadow-glow; border: 1px solid rgba(45, 226, 230, 0.4); }
+  .btn {
+    @apply bevel min-h-[44px] px-4 border border-cyan/60 bg-cyan/10 text-cyan font-semibold
+      hover:bg-cyan/25 hover:shadow-glow active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan;
+  }
+  .btn-primary { @apply btn bg-cyan text-bg hover:bg-cyan/85; }
+  .btn-danger { @apply btn border-tier-red/70 text-tier-red bg-tier-red/10 hover:bg-tier-red/25; }
+}
+
+/* 光環色(階級色) */
+.aura-cyan { --aura: theme('colors.cyan.DEFAULT'); }
+.aura-blue { --aura: theme('colors.tier.blue'); }
+.aura-purple { --aura: theme('colors.tier.purple'); }
+.aura-gold { --aura: theme('colors.tier.gold'); }
+.aura-red { --aura: theme('colors.tier.red'); }
+
+/* ===== 動畫 ===== */
+@keyframes badge-pop { 0%{transform:scale(1)} 35%{transform:scale(1.45)} 100%{transform:scale(1)} }
+@keyframes ring-burst { 0%{opacity:.9;transform:scale(.3)} 100%{opacity:0;transform:scale(1.6)} }
+@keyframes spark-fly { 0%{opacity:1;transform:translate(0,0)} 100%{opacity:0;transform:translate(var(--dx),var(--dy))} }
+@keyframes evolve-flash { 0%{opacity:0} 25%{opacity:1} 100%{opacity:0} }
+@keyframes red-flash { 0%,100%{opacity:0} 20%,60%{opacity:.55} 40%{opacity:.15} }
+@keyframes red-burst { 0%{box-shadow:0 0 0 0 theme('colors.tier.red')} 100%{box-shadow:0 0 30px 18px transparent} }
+@keyframes gem-burst { 0%{opacity:1;transform:scale(.6)} 100%{opacity:0;transform:scale(2.6)} }
+@keyframes warn-flash { 0%,100%{opacity:0} 50%{opacity:1} }
+
+/* 展示台背光與進化閃光(顏色跟隨 --aura) */
+.stage-backlight { background: radial-gradient(ellipse at 50% 42%, var(--aura), transparent 68%); }
+.stage-flash { background: radial-gradient(circle at 50% 45%, theme('colors.ink'), transparent 70%); }
+
+.fx-badge-pop { animation: badge-pop .5s ease-out; }
+.fx-ring { animation: ring-burst .7s ease-out forwards; }
+.fx-spark { animation: spark-fly .7s ease-out forwards; }
+.fx-evolve { animation: evolve-flash 1s ease-out forwards; }
+.fx-red-flash { animation: red-flash .9s ease-in-out forwards; }
+.fx-red-burst { animation: red-burst .9s ease-out; }
+.fx-gem-burst { animation: gem-burst .9s ease-out forwards; }
+.fx-warn { animation: warn-flash .5s ease-in-out 2 forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
