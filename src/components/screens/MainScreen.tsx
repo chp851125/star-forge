@@ -23,6 +23,7 @@ import CompareModal from '../modals/CompareModal'
 import { useAutoEnhance } from '../auto/useAutoEnhance'
 import { useSettlement } from '../settlement/useSettlement'
 import ResultScreen from './ResultScreen'
+import { useGameSounds } from '../../audio/useGameSounds'
 
 interface Props {
   mode: GameMode
@@ -49,6 +50,7 @@ export default function MainScreen({ mode, onRestart }: Props) {
   const [starTarget, setStarTarget] = useState(0)
   const [protect, setProtect] = useState(false)
   useAutoEnhance(state, dispatch)
+  useGameSounds(state)
   const autoRunning = !!autoSession?.active
 
   const speed = lastEvent?.auto ? AUTO_STAR_SPEED : 1

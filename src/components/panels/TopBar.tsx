@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { GameMode, Resources } from '../../types'
 import { LOW_REMAINING_RATIO, PRESET_LABEL } from '../../config/modes'
 import ConfirmPopover from '../ui/ConfirmPopover'
+import SoundControl from '../ui/SoundControl'
 import Switch from '../ui/Switch'
 
 interface Props {
@@ -73,6 +74,7 @@ export default function TopBar(p: Props) {
         <Res label={`共 ${mode.turns} 次`} items={[['剩餘次數', `${turnsLeft}`, isLow(turnsLeft, mode.turns ?? 0)]]} />
       )}
       <div className="ml-auto flex flex-wrap items-center gap-2 lg:flex-nowrap">
+        <SoundControl />
         <Switch checked={p.autoOn} onChange={p.onAuto} disabled={p.autoLocked} label="自動功能" hint="自己慢慢衝,或交給自動" />
         <div className="text-center">
           <button

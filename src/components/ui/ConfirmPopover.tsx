@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { play } from '../../audio/engine'
+import type { SoundId } from '../../types'
 
 interface Props {
   /** 浮層貼近的元素 */
@@ -7,6 +9,8 @@ interface Props {
   message: string
   /** 有值時「確定」disabled 並顯示原因 */
   blocked?: string | null
+  /** 按下「確定」的音效 */
+  sound?: SoundId
   onConfirm: () => void
   onCancel: () => void
 }
@@ -14,7 +18,16 @@ interface Props {
 const GAP = 8
 
 /** 輕量確認浮層:Enter 確定、Esc 取消 */
-export default function ConfirmPopover({ anchor, message, blocked, onConfirm, onCancel }: Props) {
+export default function ConfirmPopover({ anchor, message, blocked, sound = 'confirm', onConfirm, onCancel }: Props) {
+  // 按鈕與快捷鍵共用:播音效後執行
+  const accept = () => {
+    play(sound)
+    onConfirm()
+  }
+  const dismiss = () => {
+    play('click')
+    onCancel()
+  }
   const box = useRef<HTMLDivElement>(null)
   const ok = useRef<HTMLButtonElement>(null)
   const cancel = useRef<HTMLButtonElement>(null)
@@ -47,8 +60,8 @@ export default function ConfirmPopover({ anchor, message, blocked, onConfirm, on
       if (e.key === ' ' && box.current?.contains(e.target as Node)) return
       e.preventDefault()
       if (e.repeat) return
-      if (e.key === 'Escape' || (e.key === 'Enter' && e.target === cancel.current)) onCancel()
-      else if (e.key === 'Enter' && !blocked) onConfirm()
+      if (e.key === 'Escape' || (e.key === 'Enter' && e.target === cancel.current)) dismiss()
+      else if (e.key === 'Enter' && !blocked) accept()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
@@ -67,8 +80,8 @@ export default function ConfirmPopover({ anchor, message, blocked, onConfirm, on
         <p>{message}</p>
         {blocked && <p className="font-semibold text-tier-red">{blocked}</p>}
         <div className="grid grid-cols-2 gap-2">
-          <button ref={ok} className="btn-primary" disabled={!!blocked} onClick={onConfirm}>確定</button>
-          <button ref={cancel} className="btn" onClick={onCancel}>取消</button>
+          <button ref={ok} className="btn-primary" disabled={!!blocked} data-sound="none" onClick={accept}>確定</button>
+          <button ref={cancel} className="btn" data-sound="none" onClick={dismiss}>取消</button>
         </div>
       </div>
     </>,

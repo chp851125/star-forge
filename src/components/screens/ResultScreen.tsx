@@ -7,6 +7,7 @@ import SwordStage from '../Sword/SwordStage'
 import AffixList from '../panels/AffixList'
 import { MilestoneList, StatGrid } from '../panels/StatsPanel'
 import { modeLabel } from '../panels/TopBar'
+import { play } from '../../audio/engine'
 
 interface Props { result: Settlement; onRestart: () => void }
 
@@ -28,8 +29,10 @@ export default function ResultScreen({ result, onRestart }: Props) {
     try {
       await navigator.clipboard.writeText(buildShareText(result))
       setCopy('copied')
+      play('confirm')
     } catch {
       setCopy('failed')
+      play('error')
     }
   }
 
@@ -70,7 +73,7 @@ export default function ResultScreen({ result, onRestart }: Props) {
             </div>
 
             <div className="flex shrink-0 flex-wrap justify-center gap-3">
-              <button className="btn-primary" onClick={doCopy} aria-live="polite">
+              <button className="btn-primary" data-sound="none" onClick={doCopy} aria-live="polite">
                 {copy === 'copied' ? '已複製 ✓' : '複製成績文字'}
               </button>
               <button className="btn" onClick={onRestart}>重新開始</button>

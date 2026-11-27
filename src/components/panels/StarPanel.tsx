@@ -120,7 +120,7 @@ export default function StarPanel(props: Props) {
       )}
 
       {cost !== null && <div className="text-sm text-muted">消耗:升星石 ×{cost}</div>}
-      <button className="btn-primary min-h-[52px] w-full text-lg" disabled={props.disabled || props.noTurns || short || !step} onClick={props.onStar}>
+      <button className="btn-primary min-h-[52px] w-full text-lg" disabled={props.disabled || props.noTurns || short || !step} data-sound="none" onClick={props.onStar}>
         {label}
       </button>
       {auto && <AutoStarPanel stars={stars} {...auto} />}
