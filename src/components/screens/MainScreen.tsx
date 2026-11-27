@@ -3,7 +3,7 @@ import type { AffixSlot, GameMode, RerollMode, RerollResult, Resources, RunStats
 import { MAX_STARS, REROLL_BASE_COST, STAR_COST } from '../../config/balance'
 import { WEAPON_STYLE } from '../../config/weapons'
 import { tierOfLv } from '../../config/affixes'
-import { AUTO_REROLL_DELAY, AUTO_STAR_DELAY } from '../../config/auto'
+import { AUTO_REROLL_DELAY, AUTO_STAR_DELAY, AUTO_STAR_SPEED } from '../../config/auto'
 import { emptyStats, fakeReroll, fakeRoll, fakeStar, mockWeapon, rand } from '../../mock/mockState'
 import SwordStage from '../Sword/SwordStage'
 import { SHATTER_MS } from '../Sword/WeaponArt'
@@ -81,18 +81,18 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
   }
 
   /** 播放特效並更新星級(歸零延後到碎裂動畫結束) */
-  const play = (kind: WeaponEvent['kind'], to: number, slot?: number) => {
-    setFx({ kind, n: ++n.current, slot })
+  const play = (kind: WeaponEvent['kind'], to: number, slot?: number, speed = 1) => {
+    setFx({ kind, n: ++n.current, slot, speed })
     if (kind === 'reset' && quality !== 'off') {
       setBusy(true)
       main.current?.animate(
         [0, -10, 9, -8, 6, -4, 0].map((x, i) => ({ transform: `translate(${x}px, ${i % 2 ? 4 : x ? -4 : 0}px)` })),
-        { duration: 600 },
+        { duration: 600 / speed },
       )
       timer.current = window.setTimeout(() => {
         setWeapon((w) => ({ ...w, stars: to }))
         setBusy(false)
-      }, SHATTER_MS)
+      }, SHATTER_MS / speed)
     } else if (kind !== 'red') setWeapon((w) => ({ ...w, stars: to }))
   }
 
@@ -103,11 +103,11 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
   const noTurns = turns !== undefined && turns <= 0
   const exhausted = noTurns || (mode.kind === 'limited' && mode.preset !== 'turns' && noStone && res.rerollStone < 1)
 
-  const doStar = (): StarOutcome => {
+  const doStar = (speed = 1): StarOutcome => {
     const from = weapon.stars
     const { outcome, to } = fakeStar(from)
     spend(STAR_COST, 0)
-    if (outcome !== 'keep') play(outcome, to)
+    if (outcome !== 'keep') play(outcome, to, undefined, speed)
     const key = STAR_COUNTER[outcome]
     log(`衝星 +${from}→+${to} ${STAR_LABEL[outcome]}`, {
       starAttempts: 1,
@@ -132,9 +132,9 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     } else log(`解除鎖定詞條 ${i + 1}`)
   }
 
-  /** 採用範圍內洗出紅詞條時,展示台紅光爆發 */
-  const burstRed = (before: Slots, after: Slots, apply: boolean[]) => {
-    const i = after.findIndex((s, i) => apply[i] && s && s !== before[i] && tierOfLv(s.lv) === 'red')
+  /** 洗出紅詞條時,展示台紅光爆發 */
+  const burstRed = (before: Slots, after: Slots) => {
+    const i = after.findIndex((s, i) => s && s !== before[i] && tierOfLv(s.lv) === 'red')
     if (i < 0) return false
     setAuraPreview(undefined)
     setFx({ kind: 'red', n: ++n.current, slot: i })
@@ -154,22 +154,21 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     const { before, after } = roll
     const up = higher(before, after)
     if (m === 'lv' && autoDiscard && !up.some(Boolean)) {
-      setResult({ ...roll, status: 'discarded', checks: up })
+      setResult({ ...roll, status: 'discarded' })
       log(`${lvChanges(before, after)},自動放棄`)
       return
     }
-    const checks = m === 'lv' ? up : after.map((s, i) => !before[i] && !!s)
-    setResult({ ...roll, status: 'pending', checks })
-    burstRed(before, after, [true, true, true])
+    setResult({ ...roll, status: 'pending' })
+    burstRed(before, after)
   }
 
   const resolve = (apply: boolean) => {
     if (result?.status !== 'pending') return
-    const slots = weapon.slots.map((s, i) => (apply && result.checks[i] ? result.after[i] : s)) as Slots
+    const slots = apply ? result.after : weapon.slots
     const changed = slots.some((s, i) => s !== weapon.slots[i])
     if (changed) {
       setWeapon((w) => ({ ...w, slots }))
-      burstRed(weapon.slots, slots, result.checks)
+      burstRed(weapon.slots, slots)
     }
     log(`洗練 ${MODE_LABEL[result.mode]}(${changed ? '效果變更' : '效果維持'})`)
     setResult(null)
@@ -180,7 +179,7 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     if (weapon.stars >= autoStarGoal.current) return { stop: 'goal' }
     if (noTurns) return { stop: 'turns' }
     if (noStone) return { stop: 'stone' }
-    const outcome = doStar()
+    const outcome = doStar(AUTO_STAR_SPEED)
     return { used: STAR_COST, outcome, delay: AUTO_STAR_DELAY[outcome === 'success' || outcome === 'keep' ? 'normal' : outcome] }
   })
 
@@ -198,9 +197,9 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     const slots = before.map((s, i) => (up[i] ? after[i] : s)) as Slots
     setWeapon((w) => ({ ...w, slots }))
     const any = up.some(Boolean)
-    setResult({ ...roll, status: any ? 'auto' : 'discarded', checks: up })
+    setResult({ ...roll, status: any ? 'auto' : 'discarded' })
     if (!any) log(`${lvChanges(before, after)},自動放棄`)
-    const red = burstRed(before, slots, up)
+    const red = burstRed(before, slots)
     return { used: rerollCost, delay: AUTO_REROLL_DELAY[red ? 'red' : 'normal'] }
   })
 
@@ -291,7 +290,7 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
               <StarPanel
                 stars={weapon.stars}
                 disabled={busy || autoRunning || noStone || exhausted}
-                onStar={doStar}
+                onStar={() => doStar()}
                 auto={autoOn ? {
                   run: autoStar.run,
                   target: starTarget,
@@ -341,7 +340,6 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
             autoReroll.close()
             doReroll(m)
           }}
-          onToggleCheck={(i) => setResult((r) => r && { ...r, checks: r.checks.map((c, j) => (j === i ? !c : c)) })}
           onApply={() => resolve(true)}
           onKeep={() => resolve(false)}
           onToggleLock={toggleLock}

@@ -20,7 +20,6 @@ interface Props {
   running: boolean
   onStop: () => void
   onReroll: (mode: RerollMode) => void
-  onToggleCheck: (i: number) => void
   onApply: () => void
   onKeep: () => void
   onToggleLock: (i: number) => void
@@ -114,7 +113,9 @@ export default function CompareModal(props: Props) {
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-bg/60 lg:bg-transparent" onClick={requestClose} aria-hidden />
+      <div className="fixed inset-0 z-40 bg-bg/80" onClick={requestClose} aria-hidden />
+      {/* 置中外框不攔截點擊,讓點外部落到背景 */}
+      <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-3">
       <div
         ref={dialog}
         tabIndex={-1}
@@ -123,7 +124,8 @@ export default function CompareModal(props: Props) {
         aria-label="洗練視窗"
         // 滑鼠點按鈕不取走焦點,快捷鍵維持可用
         onMouseDown={(e) => (e.target as HTMLElement).closest('button') && e.preventDefault()}
-        className={`fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col border-t border-cyan bg-panel shadow-glowStrong outline-none lg:inset-y-0 lg:left-auto lg:h-auto lg:max-h-none lg:w-[min(34rem,48vw)] lg:border-l lg:border-t-0 ${props.auto ? 'h-[90dvh]' : ''}`}
+        // 有自動區塊時固定高度,摘要卡切換時按鈕位置不動
+        className={`pointer-events-auto flex max-h-full w-full max-w-xl flex-col border border-cyan bg-panel shadow-glowStrong outline-none ${props.auto ? 'h-[44rem]' : ''}`}
       >
         <header className="flex shrink-0 items-center justify-between gap-2 border-b border-cyan/30 px-3 py-1">
           <div>
@@ -147,7 +149,7 @@ export default function CompareModal(props: Props) {
               return (
                 <li
                   key={i}
-                  className="grid h-16 grid-cols-[2.75rem_minmax(0,1fr)_1rem_minmax(0,1fr)_2.75rem] items-center gap-1 sm:gap-2"
+                  className="grid h-16 grid-cols-[2.75rem_minmax(0,1fr)_1rem_minmax(0,1fr)] items-center gap-1 sm:gap-2"
                 >
                   <button
                     ref={(el) => { lockBtns.current[i] = el }}
@@ -182,18 +184,6 @@ export default function CompareModal(props: Props) {
                       {s?.locked ? '已鎖定' : '—'}
                     </div>
                   )}
-                  {pending && rolled ? (
-                    <button
-                      className={`h-14 border text-xl font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan ${pending.checks[i] ? 'border-zone-safe bg-zone-safe/20 text-zone-safe' : 'border-muted/50 text-muted'}`}
-                      aria-pressed={pending.checks[i]}
-                      aria-label={`詞條 ${i + 1} 採用新結果`}
-                      onClick={() => props.onToggleCheck(i)}
-                    >
-                      {pending.checks[i] ? '✓' : '✗'}
-                    </button>
-                  ) : (
-                    <span />
-                  )}
                 </li>
               )
             })}
@@ -223,6 +213,7 @@ export default function CompareModal(props: Props) {
           />
           {props.auto}
         </div>
+      </div>
       </div>
 
       {lockAsk !== null && asked && (
