@@ -5,6 +5,7 @@ import { REROLL_BASE_COST } from '../config/reroll'
 import { WEAPON_STYLE, stageOf } from '../config/weapons'
 import { getEnhanceCost } from './enhance'
 import { getAttributeValue, getTier } from './reroll'
+import { buildRunSummary, type Usage } from './summary'
 
 /** 次數制的操作次數上限;其他模式為 undefined */
 export const getActionLimit = (mode: GameMode): number | undefined =>
@@ -36,16 +37,17 @@ function slotText(s: AffixSlot): string {
 }
 
 /** 複製用成績文字 */
-export function buildShareText({ weapon, mode, stats, grade, score }: Settlement): string {
-  const quota = mode.kind === 'limited' && mode.preset !== 'turns' ? mode.quota : null
-  const spent = (used: number, max?: number) => (max === undefined ? `${used}` : `${used}/${max}`)
+export function buildShareText(result: Settlement): string {
+  const { weapon, mode, grade, score } = result
+  const { enhance, resources } = buildRunSummary(result)
+  const spent = ({ used, limit }: Usage) => (limit === undefined ? `${used}` : `${used}/${limit}`)
   return [
     `星煉工坊 評級 ${grade}(${score} 分)`,
     `劍:+${weapon.stars} ${WEAPON_STYLE.stages[stageOf(weapon.stars)].name}`,
     // 右括號後直接接斜線
     `詞條:${weapon.slots.map(slotText).reduce((line, t) => `${line}${line.endsWith(')') ? '' : ' '}/ ${t}`)}`,
     `模式:${mode.kind === 'infinite' ? '無限' : `限定・${PRESET_LABEL[mode.preset]}`}`,
-    `衝星 ${stats.starAttempts} 次(成功 ${stats.successes}・掉星 ${stats.drops}・歸零 ${stats.resets})`,
-    `消耗:升星石 ${spent(stats.starStoneUsed, quota?.starStone)}、洗練石 ${spent(stats.rerollStoneUsed, quota?.rerollStone)}`,
+    `衝星 ${enhance.attempts} 次(成功 ${enhance.successes}・掉星 ${enhance.drops}・歸零 ${enhance.resets})`,
+    `消耗:升星石 ${spent(resources.starStone)}、洗練石 ${spent(resources.rerollStone)}`,
   ].join('\n')
 }

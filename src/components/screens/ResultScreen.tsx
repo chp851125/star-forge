@@ -5,16 +5,17 @@ import { COPIED_MS } from '../../config/settle'
 import { buildShareText } from '../../core/settlement'
 import SwordStage from '../Sword/SwordStage'
 import AffixList from '../panels/AffixList'
-import { MilestoneList, StatGrid } from '../panels/StatsPanel'
+import { MilestoneList, StatSections } from '../panels/StatsPanel'
+import { buildRunSummary } from '../../core/summary'
 import { modeLabel } from '../panels/TopBar'
 import { play } from '../../audio/engine'
 
 interface Props { result: Settlement; onRestart: () => void }
 
 export default function ResultScreen({ result, onRestart }: Props) {
-  const { weapon, mode, stats, grade, score, affixScore, starScore, milestones } = result
+  const { weapon, mode, grade, score, affixScore, starScore } = result
+  const summary = buildRunSummary(result)
   const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const quota = mode.kind === 'limited' && mode.preset !== 'turns' ? mode.quota : null
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -35,8 +36,6 @@ export default function ResultScreen({ result, onRestart }: Props) {
       play('error')
     }
   }
-
-  const spent = (used: number, max?: number) => (max === undefined ? `${used}` : `${used} / ${max}`)
 
   return (
     <div className="lg:h-dvh lg:overflow-hidden">
@@ -64,12 +63,8 @@ export default function ResultScreen({ result, onRestart }: Props) {
 
             <div className="panel shrink-0 space-y-2 p-3">
               <div className="text-sm font-semibold text-cyan">{modeLabel(mode)}</div>
-              <StatGrid stats={stats} />
-              <p className="text-sm">
-                {quota ? '消耗(已用 / 額度)' : '累計消耗'}:升星石 {spent(stats.starStoneUsed, quota?.starStone)}、洗練石{' '}
-                {spent(stats.rerollStoneUsed, quota?.rerollStone)}
-              </p>
-              <MilestoneList milestones={milestones} />
+              <StatSections summary={summary} />
+              <MilestoneList milestones={summary.milestones} />
             </div>
 
             <div className="flex shrink-0 flex-wrap justify-center gap-3">
