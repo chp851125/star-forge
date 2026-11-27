@@ -6,7 +6,7 @@ export function useActiveEvent(event: WeaponEvent | null, durations: Record<Weap
   const [done, setDone] = useState(-1)
   const active = event && event.n !== done ? event : null
   const n = active?.n
-  const ms = active ? durations[active.kind] : 0
+  const ms = active ? durations[active.kind] / (active.speed ?? 1) : 0
   useEffect(() => {
     if (n === undefined) return
     const t = window.setTimeout(() => setDone(n), ms)

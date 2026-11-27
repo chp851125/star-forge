@@ -53,7 +53,7 @@ export default function WeaponArt({ stars, auraTier, event, className = '' }: Pr
         el.querySelectorAll('.w-shine').forEach((s) => s.getAnimations().forEach((a) => a.updatePlaybackRate(r)))
       // 等跨階段的新光帶掛載後再加速
       const start = window.setTimeout(() => rate(3), 30)
-      const end = window.setTimeout(() => rate(1), 1030)
+      const end = window.setTimeout(() => rate(1), 1030 / (event.speed ?? 1))
       return () => {
         clearTimeout(start)
         clearTimeout(end)
