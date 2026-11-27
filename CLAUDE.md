@@ -85,6 +85,7 @@ src/
 ## Git 與部署
 - **不直接在 main 上提交**。每個功能/步驟:`git switch main && git pull`,建立 `feat/<短名>`(或 `fix/`、`chore/`)分支,小步 commit(訊息如 `feat: ...`、`fix: ...`、`chore: ...`,簡短),完成後 `git push -u origin <分支>`。
 - **不要自行合併、不要自行開 PR**:使用者會在 GitHub 上自己建立 PR 並合併。
+- 每次任務推送分支後,回報中**附上 PR 的 title 與 description**(各放在可直接複製的程式碼區塊;title 比照 commit 格式,description 簡短列出改了什麼、如何確認)。
 - 合併進 main 後,由 GitHub Actions 自動建置並部署到 GitHub Pages(`.github/workflows/deploy.yml`)。
 - 不要 force push、不要改寫已推送的歷史、不要提交 `node_modules`、`dist`。
 - 推送前必須 `npm run build` 與 `npm test`(若已有測試)通過。
