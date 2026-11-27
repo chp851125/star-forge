@@ -26,3 +26,5 @@ export const AFFIXES: AffixDef[] = [
 export const AFFIX_MAP = Object.fromEntries(AFFIXES.map((a) => [a.id, a])) as Record<AffixId, AffixDef>
 
 export const TIER_NAME: Record<Tier, string> = { blue: '普通', purple: '稀有', gold: '傳說', red: '頂規' }
+/** 成績文字用的顏色名 */
+export const TIER_COLOR_NAME: Record<Tier, string> = { blue: '藍', purple: '紫', gold: '金', red: '紅' }

@@ -2,6 +2,7 @@ import { useEffect, useRef, type Dispatch } from 'react'
 import { AUTO_STAR_DELAY } from '../../config/auto'
 import { shouldStopAuto } from '../../core/autoEnhance'
 import { getEnhanceCost } from '../../core/enhance'
+import { getActionLimit } from '../../core/settlement'
 import { isUnlimited, type GameAction, type GameState } from '../../state/gameReducer'
 
 /** 自動升星:等上一次結果的間隔結束,判斷是否停止,否則衝下一次 */
@@ -22,9 +23,9 @@ export function useAutoEnhance(state: GameState, dispatch: Dispatch<GameAction>)
   useEffect(() => {
     if (!active) return
     const t = window.setTimeout(() => {
-      const { autoSession, weapon, resources, mode, turnsLeft } = latest.current
+      const { autoSession, weapon, resources, mode, actionsUsed } = latest.current
       if (!autoSession?.active) return
-      const noTurns = turnsLeft !== undefined && turnsLeft <= 0
+      const noTurns = actionsUsed >= (getActionLimit(mode) ?? Infinity)
       const reason = shouldStopAuto({
         star: weapon.stars,
         target: autoSession.target,

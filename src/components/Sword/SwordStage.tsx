@@ -21,7 +21,7 @@ interface Props {
   fill?: boolean
 }
 
-const OVERLAY_MS: Record<WeaponEvent['kind'], number> = { success: 900, evolve: 1000, keep: 600, drop: 1000, reset: 1400, red: 1000 }
+export const OVERLAY_MS: Record<WeaponEvent['kind'], number> = { success: 900, evolve: 1000, keep: 600, drop: 1000, reset: 1400, red: 1000 }
 
 const SPARKS = Array.from({ length: 10 }, (_, i) => {
   const a = (i / 10) * Math.PI * 2

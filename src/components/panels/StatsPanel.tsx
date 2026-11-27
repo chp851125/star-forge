@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { RunStats } from '../../types'
+import type { Milestone, RunStats } from '../../types'
+import { formatMilestone } from '../../core/settlement'
 
 export function StatGrid({ stats }: { stats: RunStats }) {
   const items: [string, number][] = [
@@ -23,7 +24,18 @@ export function StatGrid({ stats }: { stats: RunStats }) {
   )
 }
 
-export default function StatsPanel({ stats, log }: { stats: RunStats; log: string[] }) {
+export function MilestoneList({ milestones }: { milestones: Milestone[] }) {
+  if (!milestones.length) return null
+  return (
+    <ul className="space-y-0.5 text-sm text-tier-gold" aria-label="里程碑">
+      {milestones.map((m) => <li key={m.star}>{formatMilestone(m)}</li>)}
+    </ul>
+  )
+}
+
+interface Props { stats: RunStats; log: string[]; milestones: Milestone[] }
+
+export default function StatsPanel({ stats, log, milestones }: Props) {
   const [open, setOpen] = useState(false)
   return (
     <section className="panel px-3 py-1">
@@ -38,6 +50,7 @@ export default function StatsPanel({ stats, log }: { stats: RunStats; log: strin
       {open && (
         <div className="mt-2 space-y-3">
           <StatGrid stats={stats} />
+          <MilestoneList milestones={milestones} />
           <ol className="max-h-40 space-y-1 overflow-y-auto text-sm text-muted">
             {log.length === 0 && <li>尚無紀錄</li>}
             {log.map((l, i) => (

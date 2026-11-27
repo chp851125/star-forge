@@ -1,13 +1,17 @@
 import type {
-  AutoStopReason, EnhanceOutcome, GameMode, RerollMode, RerollPhase, Resources, RunStats, Weapon, WeaponEvent,
+  AutoStopReason, EnhanceOutcome, FinishReason, GameMode, Milestone, RerollMode, RerollPhase, Resources, RunStats,
+  Settlement, Weapon, WeaponEvent,
 } from '../types'
 import { MAX_STAR } from '../config/balance'
+import { MILESTONE_STARS } from '../config/milestones'
 import { LOCK_COST } from '../config/reroll'
 import { stageOf } from '../config/weapons'
 import { describeEnhance, nextConsecutiveDrops, rollEnhance, type EnhanceResult } from '../core/enhance'
 import {
   canAffixChange, canValueReroll, countLocked, getRerollCost, getTier, rollAffixChange, rolledSlots, rollValueReroll,
 } from '../core/reroll'
+import { calcAffixScore, calcScore, getGrade } from '../core/grading'
+import { getActionLimit } from '../core/settlement'
 import { addEnhance, addLock, addReroll, emptyStats } from '../core/stats'
 
 export interface GameEvent {
@@ -39,8 +43,11 @@ export interface GameState {
   mode: GameMode
   weapon: Weapon
   resources: Resources
-  /** 次數制剩餘次數 */
-  turnsLeft?: number
+  /** 衝星與洗練的操作次數(鎖定不計) */
+  actionsUsed: number
+  milestones: Milestone[]
+  /** 非 null = 已結算,之後的操作一律忽略 */
+  settlement: Settlement | null
   stats: RunStats
   /** 操作紀錄,新的在前 */
   log: string[]
@@ -77,6 +84,7 @@ export type GameAction =
   | { type: 'TOGGLE_LOCK'; slotIndex: number }
   /** 供開發面板使用 */
   | { type: 'SET_SLOTS'; slots: Weapon['slots'] }
+  | { type: 'FINISH_RUN'; reason: FinishReason }
 
 /** 石頭是否不限量(無限模式與次數制) */
 export const isUnlimited = (m: GameMode) => m.kind === 'infinite' || m.preset === 'turns'
@@ -88,7 +96,9 @@ export function createGame(mode: GameMode, slots: Weapon['slots'] = [null, null,
     mode,
     weapon: { stars: 0, slots: [...slots] as Weapon['slots'] },
     resources: mode.kind === 'limited' ? { ...mode.quota } : { starStone: 0, rerollStone: 0 },
-    turnsLeft: mode.kind === 'limited' ? mode.turns : undefined,
+    actionsUsed: 0,
+    milestones: [],
+    settlement: null,
     stats: emptyStats(),
     log: [],
     consecutiveDrops: 0,
@@ -102,7 +112,15 @@ export function createGame(mode: GameMode, slots: Weapon['slots'] = [null, null,
   }
 }
 
-const spendTurn = (t: number | undefined) => (t === undefined ? t : t - 1)
+/** 次數制次數是否用完 */
+const outOfActions = (s: GameState) => s.actionsUsed >= (getActionLimit(s.mode) ?? Infinity)
+
+/** 首次到達里程碑星級時記錄當下累計值 */
+function addMilestone(list: Milestone[], star: number, stats: RunStats): Milestone[] {
+  if (!MILESTONE_STARS.includes(star) || list.some((m) => m.star === star)) return list
+  const { starStoneUsed: enhanceStoneSpent, rerollStoneUsed: rerollStoneSpent, starAttempts: attempts } = stats
+  return [...list, { star, enhanceStoneSpent, rerollStoneSpent, attempts }]
+}
 
 const nextEvent = (s: GameState, e: Omit<GameEvent, 'id'>): GameEvent => ({ id: (s.lastEvent?.id ?? 0) + 1, ...e })
 
@@ -110,7 +128,7 @@ const stopAuto = (s: GameState, reason: AutoStopReason): GameState =>
   s.autoSession?.active ? { ...s, autoSession: { ...s.autoSession, active: false, stopReason: reason } } : s
 
 function enhance(s: GameState, protect: boolean, roll: number): GameState {
-  if (s.turnsLeft !== undefined && s.turnsLeft <= 0) return s
+  if (outOfActions(s)) return s
   const from = s.weapon.stars
   const r = rollEnhance({ star: from, protect, consecutiveDrops: s.consecutiveDrops, rng: () => roll })
   if (!r) return s
@@ -119,12 +137,14 @@ function enhance(s: GameState, protect: boolean, roll: number): GameState {
 
   const auto = s.autoSession?.active ? s.autoSession : null
   const evolved = r.newStar > from && stageOf(r.newStar) !== stageOf(from)
+  const stats = addEnhance(s.stats, r)
   return {
     ...s,
     weapon: { ...s.weapon, stars: r.newStar },
     resources: unlimited ? s.resources : { ...s.resources, starStone: s.resources.starStone - r.cost },
-    turnsLeft: spendTurn(s.turnsLeft),
-    stats: addEnhance(s.stats, r),
+    actionsUsed: s.actionsUsed + 1,
+    stats,
+    milestones: r.outcome === 'success' ? addMilestone(s.milestones, r.newStar, stats) : s.milestones,
     log: [`衝星 ${describeEnhance(from, r)}`, ...s.log],
     consecutiveDrops: nextConsecutiveDrops(s.consecutiveDrops, r.outcome),
     lastResult: { ...r, from },
@@ -151,7 +171,7 @@ function redEvent(s: GameState, rolled: Weapon['slots'][number][]): GameEvent | 
 function reroll(s: GameState, kind: RerollMode, rolls: number[]): GameState {
   const { slots } = s.weapon
   if (s.rerollPhase === 'pending') return s
-  if (s.turnsLeft !== undefined && s.turnsLeft <= 0) return s
+  if (outOfActions(s)) return s
   if (!(kind === 'affix' ? canAffixChange(slots) : canValueReroll(slots))) return s
   const lockedCount = countLocked(slots)
   const cost = getRerollCost(lockedCount)
@@ -165,7 +185,7 @@ function reroll(s: GameState, kind: RerollMode, rolls: number[]): GameState {
   return {
     ...s,
     resources: unlimited ? s.resources : { ...s.resources, rerollStone: s.resources.rerollStone - cost },
-    turnsLeft: spendTurn(s.turnsLeft),
+    actionsUsed: s.actionsUsed + 1,
     stats: addReroll(s.stats, { cost, lockedCount, rolled }),
     log: [`洗練 ${MODE_LABEL[kind]}`, ...s.log],
     lastEvent: redEvent(s, rolled),
@@ -195,7 +215,6 @@ function toggleLock(s: GameState, index: number): GameState {
   if (s.rerollPhase !== 'idle' || !slot) return s
   const lock = !slot.locked
   const unlimited = isUnlimited(s.mode)
-  if (lock && s.turnsLeft !== undefined && s.turnsLeft <= 0) return s
   if (lock && !unlimited && s.resources.rerollStone < LOCK_COST) return s
   const slots = [...s.weapon.slots] as Weapon['slots']
   slots[index] = { ...slot, locked: lock }
@@ -204,14 +223,28 @@ function toggleLock(s: GameState, index: number): GameState {
   return {
     ...next,
     resources: unlimited ? s.resources : { ...s.resources, rerollStone: s.resources.rerollStone - LOCK_COST },
-    turnsLeft: spendTurn(s.turnsLeft),
     stats: addLock(s.stats, LOCK_COST),
     log: [`鎖定詞條 ${index + 1}`, ...s.log],
   }
 }
 
+function finishRun(s: GameState, reason: FinishReason): GameState {
+  const { mode, weapon, stats, milestones } = s
+  const affixScore = calcAffixScore(weapon.slots)
+  const score = calcScore(weapon)
+  return {
+    ...s,
+    settlement: {
+      reason, mode, weapon, score, affixScore, starScore: weapon.stars, grade: getGrade(score), stats, milestones,
+    },
+  }
+}
+
 export function gameReducer(s: GameState, a: GameAction): GameState {
+  if (s.settlement && a.type !== 'START_RUN') return s
   switch (a.type) {
+    case 'FINISH_RUN':
+      return finishRun(s, a.reason)
     case 'START_RUN':
       return createGame(a.mode, a.slots)
     case 'ENHANCE':

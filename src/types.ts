@@ -56,6 +56,29 @@ export interface RunStats {
   rerollStoneUsed: number
 }
 
+export type FinishReason = 'manual' | 'exhausted' | 'actions'
+
+/** 首次到達某星級時的累計值 */
+export interface Milestone {
+  star: number
+  enhanceStoneSpent: number
+  rerollStoneSpent: number
+  attempts: number
+}
+
+/** 結算快照 */
+export interface Settlement {
+  reason: FinishReason
+  mode: GameMode
+  weapon: Weapon
+  score: number
+  affixScore: number
+  starScore: number
+  grade: Grade
+  stats: RunStats
+  milestones: Milestone[]
+}
+
 export type EnhanceOutcome = 'success' | 'keep' | 'drop' | 'reset'
 /** 衝星特效種類(跨階段成功為 evolve) */
 export type StarEffect = EnhanceOutcome | 'evolve'
