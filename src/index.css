@@ -14,6 +14,19 @@ body { background: #070b16; color: #e6f7ff; margin: 0; }
       focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan;
   }
   .btn-primary { @apply btn bg-cyan text-bg hover:bg-cyan/85; }
+  /* NumberStepper:光暈放外層,避免被切角 clip-path 裁掉 */
+  .stepper:focus-within { filter: drop-shadow(0 0 6px theme('colors.cyan.DEFAULT')); }
+  .stepper-btn {
+    @apply h-11 w-11 select-none touch-manipulation bg-cyan/10 text-xl font-bold text-cyan
+      hover:bg-cyan/25 disabled:opacity-40 disabled:cursor-not-allowed
+      focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan;
+  }
+  .stepper-input {
+    @apply h-11 w-20 border-x border-cyan/30 bg-transparent text-center text-lg font-bold text-ink outline-none;
+    appearance: none;
+    -moz-appearance: textfield;
+  }
+  .stepper-input::-webkit-inner-spin-button, .stepper-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .btn-danger { @apply btn border-tier-red/70 text-tier-red bg-tier-red/10 hover:bg-tier-red/25; }
 }
 

@@ -8,4 +8,10 @@ export const QUOTA_PRESETS: { id: 'easy' | 'normal' | 'hard'; label: string; quo
 
 export const DEFAULT_TURNS = 50
 export const DEFAULT_CUSTOM: Resources = { starStone: 100, rerollStone: 60 }
-export const INFINITE_GOALS = ['', '+15', '+15 且三條皆金以上', '三條皆頂規']
+
+/** 數字輸入的範圍與快速選項 */
+export const STONE_INPUT = {
+  starStone: { min: 1, max: 9999, presets: [100, 300, 1000] },
+  rerollStone: { min: 1, max: 9999, presets: [50, 150, 500] },
+}
+export const TURNS_INPUT = { min: 1, max: 999, presets: [30, 60, 100] }

@@ -26,7 +26,7 @@ export function StatGrid({ stats }: { stats: RunStats }) {
 export default function StatsPanel({ stats }: { stats: RunStats }) {
   const [open, setOpen] = useState(false)
   return (
-    <section className="panel p-3">
+    <section className="panel px-3 py-1">
       <button
         className="flex min-h-[44px] w-full items-center justify-between font-semibold text-cyan"
         aria-expanded={open}

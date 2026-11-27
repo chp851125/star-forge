@@ -27,7 +27,7 @@ export interface Resources {
 }
 
 export type GameMode =
-  | { kind: 'infinite'; goal: string }
+  | { kind: 'infinite' }
   | { kind: 'limited'; preset: 'easy' | 'normal' | 'hard' | 'custom' | 'turns'; quota: Resources; turns?: number }
 
 export interface RunStats {

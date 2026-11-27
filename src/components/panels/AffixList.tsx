@@ -29,15 +29,36 @@ export function AffixRow({ slot, burst, compact = false }: { slot: AffixSlot; bu
   )
 }
 
+/** 詞條摘要:三列緊湊單行 */
 export default function AffixList({ slots, fx }: { slots: AffixSlot[]; fx: WeaponEvent | null }) {
   return (
-    <ul className="mx-auto mt-4 w-full max-w-md space-y-2">
-      {slots.map((s, i) => (
-        <li key={`${i}-${fx?.kind === 'red' && fx.slot === i ? fx.n : 0}`}>
-          <div className="mb-0.5 text-xs text-muted">詞條 {i + 1}</div>
-          <AffixRow slot={s} burst={fx?.kind === 'red' && fx.slot === i} />
-        </li>
-      ))}
+    <ul className="w-full shrink-0 space-y-1" aria-label="詞條摘要">
+      {slots.map((s, i) => {
+        const burst = fx?.kind === 'red' && fx.slot === i
+        const t = s ? tierOfLv(s.lv) : null
+        const d = s ? AFFIX_MAP[s.id] : null
+        return (
+          <li
+            key={`${i}-${burst ? fx.n : 0}`}
+            className={`flex h-9 items-center gap-2 border px-3 text-sm ${t ? `${TIER_BORDER[t]} ${TIER_BG[t]} ${TIER_TEXT[t]}` : 'border-dashed border-muted/50 text-muted'} ${burst ? 'fx-red-burst' : ''}`}
+          >
+            <span
+              className={`h-2.5 w-2.5 shrink-0 rounded-full ${t ? 'bg-current' : 'border border-current'}`}
+              role="img"
+              aria-label={t ? TIER_NAME[t] : '空欄'}
+            />
+            {s && d ? (
+              <>
+                <span className="flex-1 truncate font-semibold">{d.name}</span>
+                <span className="font-bold">+{affixValue(d, s.lv)}{d.unit}</span>
+                <span className="w-10 text-right">Lv{s.lv}</span>
+              </>
+            ) : (
+              <span>(空欄)</span>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }

@@ -163,19 +163,21 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
   )
 
   return (
-    <main ref={main} className="mx-auto max-w-6xl space-y-4 p-4">
+    <div className="lg:h-dvh lg:overflow-hidden">
+    <main ref={main} className="mx-auto flex max-w-6xl flex-col gap-3 p-3 lg:h-full">
       <TopBar mode={mode} resources={res} turnsLeft={turns} onFinish={() => onFinish(weapon, stats)} onRestart={onRestart} />
       {exhausted && <div className="border border-tier-red bg-tier-red/10 p-2 text-center text-tier-red" role="alert">資源已耗盡,即將結算…</div>}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <section>
-          <SwordStage stars={weapon.stars} slots={weapon.slots} fx={fx} auraTier={auraPreview} />
+      <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-2 lg:grid-rows-1">
+        <section className="flex min-w-0 flex-col gap-2 lg:min-h-0">
+          <SwordStage fill stars={weapon.stars} slots={weapon.slots} fx={fx} auraTier={auraPreview} />
           <AffixList slots={weapon.slots} fx={fx} />
         </section>
 
-        <section className="space-y-4">
+        {/* 展開收合區塊時只在右欄內捲動 */}
+        <section className="min-w-0 space-y-2 lg:min-h-0 lg:overflow-y-auto">
           <div className="panel p-3">
-            <div role="tablist" className="mb-3 flex border-b border-cyan/30">
+            <div role="tablist" className="mb-2 flex border-b border-cyan/30">
               {tabBtn('star', '衝星台')}
               {tabBtn('reroll', '洗練台')}
             </div>
@@ -204,5 +206,6 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
       )}
       <span className="sr-only">{weapon.slots.map(affixText).join(',')}</span>
     </main>
+    </div>
   )
 }

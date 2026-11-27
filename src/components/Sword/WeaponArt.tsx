@@ -76,7 +76,8 @@ export default function WeaponArt({ stars, auraTier, event, className = '' }: Pr
 
   return (
     <svg
-      viewBox="-90 -315 180 430"
+      viewBox="-86 -272 172 384"
+      preserveAspectRatio="xMidYMid meet"
       overflow="visible"
       className={`weapon ${AURA_CLASS(auraTier)} ${className}`}
       role="img"
