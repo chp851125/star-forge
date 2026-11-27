@@ -278,7 +278,7 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
 
       {roll && (
         <CompareModal
-          key={roll.id}
+          rollId={roll.id}
           mode={roll.mode}
           before={roll.before}
           after={roll.after}

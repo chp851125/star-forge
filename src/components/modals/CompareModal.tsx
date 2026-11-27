@@ -4,6 +4,8 @@ import { AFFIX_MAP, affixValue, tierOfLv } from '../../config/affixes'
 import { TIER_BG, TIER_BORDER, TIER_TEXT } from '../tierStyle'
 
 interface Props {
+  /** 每洗一次遞增,只重播新結果列的動畫(視窗本身不重掛,避免閃爍) */
+  rollId: number
   mode: RerollMode
   before: Weapon['slots']
   after: Weapon['slots']
@@ -114,7 +116,7 @@ export default function CompareModal(props: Props) {
                 <Cell slot={old} />
                 <span className="text-center text-cyan" aria-hidden>→</span>
                 {rolled ? (
-                  <div className={`fx-slide-in min-w-0 ${better ? 'fx-better' : ''}`}>
+                  <div key={props.rollId} className={`fx-slide-in min-w-0 ${better ? 'fx-better' : ''}`}>
                     <Cell
                       slot={next}
                       className={red ? 'fx-red-burst' : ''}
