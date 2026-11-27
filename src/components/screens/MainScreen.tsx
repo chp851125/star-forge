@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import type { GameMode, RerollMode, Resources, Tier, Weapon, WeaponEvent } from '../../types'
-import { MAX_STAR } from '../../config/balance'
+import { MAX_STAR, PROTECTION } from '../../config/balance'
 import { WEAPON_STYLE } from '../../config/weapons'
 import { AFFIXES } from '../../config/affixes'
 import { LOCK_COST } from '../../config/reroll'
@@ -52,7 +52,7 @@ export default function MainScreen({ mode, onRestart }: Props) {
   /** 自動功能總開關(只存在記憶體) */
   const [autoOn, setAutoOn] = useState(false)
   const [starTarget, setStarTarget] = useState(0)
-  const [protect, setProtect] = useState(false)
+  const [protect, setProtect] = useState(PROTECTION.defaultOn)
   useAutoEnhance(state, dispatch)
   useGameSounds(state)
   const autoRunning = !!autoSession?.active
@@ -85,6 +85,7 @@ export default function MainScreen({ mode, onRestart }: Props) {
   const rerollCost = getRerollCost(countLocked(weapon.slots))
   const noStone = !unlimited && res.starStone < (getEnhanceCost(stars, protect) ?? 0)
   const noReroll = !unlimited && res.rerollStone < rerollCost
+  const lockBlocked = !unlimited && res.rerollStone < LOCK_COST ? '洗練石不足,無法鎖定' : null
   const noTurns = turns !== undefined && turns <= 0
   const rerollBlocked = noTurns ? '操作次數已用完' : noReroll ? '洗練石不足' : null
   const canContinue =
@@ -200,7 +201,7 @@ export default function MainScreen({ mode, onRestart }: Props) {
                 slots={weapon.slots}
                 disabled={busy || autoRunning || exhausted || rerollPhase !== 'idle'}
                 rerollBlocked={rerollBlocked}
-                lockBlocked={!unlimited && res.rerollStone < LOCK_COST ? '洗練石不足,無法鎖定' : null}
+                lockBlocked={lockBlocked}
                 stoneText={stoneText}
                 onToggleLock={(i) => dispatch({ type: 'TOGGLE_LOCK', slotIndex: i })}
                 onReroll={doReroll}
@@ -238,6 +239,8 @@ export default function MainScreen({ mode, onRestart }: Props) {
           stoneText={stoneText}
           canContinue={canContinue}
           continueBlocked={rerollBlocked}
+          lockBlocked={lockBlocked}
+          onToggleLock={(i) => dispatch({ type: 'TOGGLE_LOCK', slotIndex: i })}
           onApply={() => {
             setAuraPreview(undefined)
             dispatch({ type: 'DECIDE_ADOPT' })

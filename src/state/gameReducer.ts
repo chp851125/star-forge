@@ -213,7 +213,7 @@ function decide(s: GameState, adopt: boolean): GameState {
 
 function toggleLock(s: GameState, index: number): GameState {
   const slot = s.weapon.slots[index]
-  if (s.rerollPhase !== 'idle' || !slot) return s
+  if (s.rerollPhase === 'pending' || !slot) return s
   const lock = !slot.locked
   const unlimited = isUnlimited(s.mode)
   if (lock && !unlimited && s.resources.rerollStone < LOCK_COST) return s

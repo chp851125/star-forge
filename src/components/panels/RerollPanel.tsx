@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { RerollMode, Weapon } from '../../types'
 import { LOCK_COST } from '../../config/reroll'
 import { canAffixChange, canValueReroll, countLocked, getRerollCost } from '../../core/reroll'
-import ConfirmPopover from '../ui/ConfirmPopover'
+import LockConfirm from '../ui/LockConfirm'
+import AffixTable from './AffixTable'
 import { AffixRow } from './AffixList'
 
 interface Props {
@@ -92,16 +93,13 @@ export default function RerollPanel(props: Props) {
         </button>
       </div>
 
+      <AffixTable />
+
       {lockAsk !== null && asked && (
-        <ConfirmPopover
+        <LockConfirm
           anchor={lockBtns.current[lockAsk]!}
-          message={
-            asked.locked
-              ? '解除鎖定後,此詞條會在洗練時被重洗,每次洗練消耗 −1。確定解除?'
-              : `鎖定此詞條將消耗 ${LOCK_COST} 洗練石,之後每次洗練消耗 +1。確定鎖定?`
-          }
-          blocked={asked.locked ? null : props.lockBlocked}
-          sound={asked.locked ? 'unlock' : 'lock'}
+          locked={asked.locked}
+          blocked={props.lockBlocked}
           onConfirm={() => {
             props.onToggleLock(lockAsk)
             setLockAsk(null)

@@ -7,11 +7,11 @@ import { TIER_TEXT } from '../tierStyle'
 
 type Item = [label: string, value: string]
 
-function Section({ title, items }: { title: string; items: Item[] }) {
+function Section({ title, items, wide = false }: { title: string; items: Item[]; wide?: boolean }) {
   return (
     <section>
       <h4 className="text-sm font-semibold text-cyan">{title}</h4>
-      <dl className="grid grid-cols-2 gap-x-4">
+      <dl className={`grid grid-cols-2 gap-x-4 ${wide ? 'sm:grid-cols-3 xl:grid-cols-4' : ''}`}>
         {items.map(([k, v]) => (
           <div key={k} className="flex items-baseline justify-between gap-2 border-b border-cyan/15 py-0.5">
             <dt className="text-xs text-muted">{k}</dt>
@@ -23,7 +23,8 @@ function Section({ title, items }: { title: string; items: Item[] }) {
   )
 }
 
-export function StatSections({ summary }: { summary: RunSummary }) {
+/** compact:成品頁用,衝星與洗練改三 / 四欄以壓低高度 */
+export function StatSections({ summary, compact = false }: { summary: RunSummary; compact?: boolean }) {
   const { enhance: e, reroll: r, resources: res } = summary
   // 限定額度:已用 / 額度;次數制:已用 / 次數上限;無限:只有累計
   const resourceTitle =
@@ -31,9 +32,10 @@ export function StatSections({ summary }: { summary: RunSummary }) {
     : res.actions.limit !== undefined ? '資源(操作次數:已用 / 次數上限)'
     : '資源(累計消耗)'
   return (
-    <div className="space-y-2">
+    <div className={compact ? 'space-y-1' : 'space-y-2'}>
       <Section
         title="衝星"
+        wide={compact}
         items={[
           ['衝星次數', n(e.attempts)], ['實測成功率', formatRate(e.successRate)],
           ['成功', n(e.successes)], ['維持', n(e.keeps)],
@@ -44,6 +46,7 @@ export function StatSections({ summary }: { summary: RunSummary }) {
       />
       <Section
         title="洗練"
+        wide={compact}
         items={[
           ['洗練次數', n(r.total)], ['鎖定洗練', n(r.locked)],
           ['詞條變更', n(r.affix)], ['數值重洗', n(r.lv)],

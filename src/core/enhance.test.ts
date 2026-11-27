@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ENHANCE_TABLE, MAX_STAR, PITY, PROTECTION } from '../config/balance'
-import { canProtect, getEnhanceCost, getEnhanceStep, nextConsecutiveDrops, rollEnhance } from './enhance'
+import { canProtect, getEffectiveRates, getEnhanceCost, getEnhanceStep, nextConsecutiveDrops, rollEnhance } from './enhance'
 import { shouldStopAuto } from './autoEnhance'
 import type { EnhanceOutcome } from '../types'
 
@@ -73,16 +73,32 @@ describe('保底', () => {
   })
 })
 
-describe('防歸零', () => {
+describe('星鐵護鑄', () => {
   it('canProtect 只在歸零機率 > 0 時成立', () => {
     ENHANCE_TABLE.forEach(({ rates }, i) => expect(canProtect(i)).toBe(rates.reset > 0))
   })
 
-  it('歸零改掉 1 星,消耗加倍', () => {
+  it('歸零改為維持,消耗加倍', () => {
     const star = starWith('reset')
     expect(roll(star, 'reset', true)).toMatchObject({
-      outcome: 'drop', newStar: star - 1, cost: ENHANCE_TABLE[star].cost * PROTECTION.costMultiplier,
+      outcome: 'keep', newStar: star, cost: ENHANCE_TABLE[star].cost * PROTECTION.costMultiplier,
     })
+  })
+
+  it('不防掉星', () => {
+    const star = starWith('reset')
+    expect(roll(star, 'drop', true)).toMatchObject({ outcome: 'drop', newStar: star - 1 })
+  })
+
+  it('實際機率:歸零併入維持', () => {
+    const star = starWith('reset')
+    const { success, keep, drop, reset } = ENHANCE_TABLE[star].rates
+    expect(getEffectiveRates(star, true)).toEqual({ success, keep: keep + reset, drop, reset: 0 })
+    expect(getEffectiveRates(star, false)).toEqual(ENHANCE_TABLE[star].rates)
+  })
+
+  it('衝到 +7 為止失敗不掉星', () => {
+    ENHANCE_TABLE.slice(0, 7).forEach(({ rates }) => expect(rates.drop + rates.reset).toBe(0))
   })
 
   it('不可防護的星級消耗不加倍', () => {
@@ -98,7 +114,7 @@ describe('shouldStopAuto', () => {
     expect(shouldStopAuto({ ...base, star: 10 })).toBe('target')
     expect(shouldStopAuto({ ...base, star: 11 })).toBe('target')
   })
-  it('資源不足(含防歸零加成)', () => {
+  it('資源不足(含護鑄加成)', () => {
     const star = starWith('reset')
     const stones = ENHANCE_TABLE[star].cost
     const input = { ...base, star, target: MAX_STAR, stones }

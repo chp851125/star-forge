@@ -147,6 +147,6 @@ export type EnhanceRates = Record<EnhanceOutcome, number>
 
 export interface EnhanceStep {
   rates: EnhanceRates
-  /** 升星石消耗(不含防歸零加成) */
+  /** 升星石消耗(不含護鑄加成) */
   cost: number
 }

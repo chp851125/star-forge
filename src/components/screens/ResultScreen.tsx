@@ -47,9 +47,9 @@ export default function ResultScreen({ result, onRestart }: Props) {
           </section>
 
           <section className="flex min-w-0 flex-col gap-2 lg:min-h-0 lg:overflow-y-auto">
-            <div className="panel flex shrink-0 flex-wrap items-center justify-center gap-6 px-4 py-2">
+            <div className="panel flex shrink-0 flex-wrap items-center justify-center gap-6 px-4 py-1">
               <div
-                className={`fx-stamp flex h-24 w-24 items-center justify-center rounded-full border-4 border-current text-6xl font-black ${GRADE_COLOR[grade]}`}
+                className={`fx-stamp flex h-16 w-16 items-center justify-center rounded-full border-4 border-current text-4xl font-black ${GRADE_COLOR[grade]}`}
                 style={{ textShadow: '0 0 20px currentColor' }}
                 role="img"
                 aria-label={`評級 ${grade}`}
@@ -61,9 +61,9 @@ export default function ResultScreen({ result, onRestart }: Props) {
 
             <AffixList slots={weapon.slots} fx={null} />
 
-            <div className="panel shrink-0 space-y-2 p-3">
+            <div className="panel shrink-0 space-y-1 px-3 py-2 lg:grow">
               <div className="text-sm font-semibold text-cyan">{modeLabel(mode)}</div>
-              <StatSections summary={summary} />
+              <StatSections summary={summary} compact />
               <MilestoneList milestones={summary.milestones} />
             </div>
 
