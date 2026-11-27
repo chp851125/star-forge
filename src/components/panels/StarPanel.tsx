@@ -3,11 +3,14 @@ import { WEAPON_STYLE, stageOf } from '../../config/weapons'
 import type { StarOdds, ZoneKind } from '../../types'
 import { ZONE_BORDER, ZONE_TEXT } from '../tierStyle'
 import StarTable from './StarTable'
+import AutoStarPanel, { type AutoStarProps } from '../auto/AutoStarPanel'
 
 interface Props {
   stars: number
   disabled: boolean
   onStar: () => void
+  /** 自動功能關閉時不傳 */
+  auto?: AutoStarProps
 }
 
 const OUTCOMES: [keyof StarOdds, string, string, string][] = [
@@ -25,7 +28,7 @@ function zoneRange(z: ZoneKind): string {
   return `+${list[0]}~${list[list.length - 1]}`
 }
 
-export default function StarPanel({ stars, disabled, onStar }: Props) {
+export default function StarPanel({ stars, disabled, onStar, auto }: Props) {
   const maxed = stars >= MAX_STARS
   const zone = zoneOf(stars)
   const odds = maxed ? null : STAR_ODDS[stars]
@@ -75,6 +78,7 @@ export default function StarPanel({ stars, disabled, onStar }: Props) {
       <button className="btn-primary min-h-[52px] w-full text-lg" disabled={disabled || maxed} onClick={onStar}>
         {maxed ? '已達最高星級' : '衝星'}
       </button>
+      {auto && <AutoStarPanel stars={stars} {...auto} />}
       <StarTable stars={stars} />
     </div>
   )

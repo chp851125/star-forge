@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AffixSlot, GameMode, Resources, RunStats, StarResult, Tier, Weapon, WeaponEvent } from '../../types'
+import type { AffixSlot, GameMode, RerollMode, RerollResult, Resources, RunStats, StarOutcome, Tier, Weapon, WeaponEvent } from '../../types'
 import { MAX_STARS, REROLL_BASE_COST, STAR_COST } from '../../config/balance'
-import { WEAPON_STYLE, stageOf } from '../../config/weapons'
+import { WEAPON_STYLE } from '../../config/weapons'
 import { tierOfLv } from '../../config/affixes'
-import { emptyStats, fakeRoll, mockWeapon, rand } from '../../mock/mockState'
+import { AUTO_REROLL_DELAY, AUTO_STAR_DELAY } from '../../config/auto'
+import { emptyStats, fakeReroll, fakeRoll, fakeStar, mockWeapon, rand } from '../../mock/mockState'
 import SwordStage from '../Sword/SwordStage'
 import { SHATTER_MS } from '../Sword/WeaponArt'
 import { useQuality } from '../Sword/quality'
@@ -14,6 +15,8 @@ import RerollPanel from '../panels/RerollPanel'
 import StatsPanel from '../panels/StatsPanel'
 import DevPanel from '../panels/DevPanel'
 import CompareModal from '../modals/CompareModal'
+import AutoRerollPanel, { type TargetTier } from '../auto/AutoRerollPanel'
+import { useAutoRun, type StepResult } from '../auto/useAutoRun'
 
 interface Props {
   mode: GameMode
@@ -22,6 +25,23 @@ interface Props {
 }
 
 type Slots = Weapon['slots']
+type Counter = Exclude<keyof RunStats, 'log'>
+
+const STAR_LABEL: Record<StarOutcome, string> = {
+  success: '成功', evolve: '成功(進化)', keep: '維持', drop: '掉星', reset: '歸零',
+}
+const STAR_COUNTER: Record<StarOutcome, Counter | null> = {
+  success: 'successes', evolve: 'successes', keep: null, drop: 'drops', reset: 'resets',
+}
+const MODE_LABEL: Record<RerollMode, string> = { affix: '詞條變更', lv: '數值重洗' }
+
+/** 哪些欄位的新結果 Lv 比舊的高 */
+const higher = (before: Slots, after: Slots) =>
+  after.map((s, i) => !!s && !!before[i] && s.lv > before[i]!.lv)
+
+/** 逐列「Lv 舊 → Lv 新」 */
+const lvChanges = (before: Slots, after: Slots) =>
+  after.flatMap((s, i) => (s && s !== before[i] ? [`Lv ${before[i]?.lv} → Lv ${s.lv}`] : [])).join('、')
 
 export default function MainScreen({ mode, onFinish, onRestart }: Props) {
   const unlimited = mode.kind === 'infinite' || mode.preset === 'turns'
@@ -36,13 +56,24 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
   const { quality } = useQuality()
   const main = useRef<HTMLElement>(null)
   const [busy, setBusy] = useState(false)
-  const [pending, setPending] = useState<{ title: string; after: Slots } | null>(null)
+  const [rerollOpen, setRerollOpen] = useState(false)
+  const [result, setResult] = useState<RerollResult | null>(null)
+  const [autoDiscard, setAutoDiscard] = useState(true)
+  /** 自動功能總開關(只存在記憶體) */
+  const [autoOn, setAutoOn] = useState(false)
+  const [starTarget, setStarTarget] = useState(0)
+  const [tierTarget, setTierTarget] = useState<TargetTier>('gold')
   const n = useRef(0)
+  const rolls = useRef(0)
   const timer = useRef<number>(0)
   useEffect(() => () => clearTimeout(timer.current), [])
 
-  const log = (msg: string, patch: Partial<RunStats> = {}) =>
-    setStats((s) => ({ ...s, ...patch, log: [msg, ...s.log] }))
+  const log = (msg: string, add: Partial<Record<Counter, number>> = {}) =>
+    setStats((s) => {
+      const next = { ...s, log: [msg, ...s.log] }
+      for (const k of Object.keys(add) as Counter[]) next[k] += add[k]!
+      return next
+    })
 
   const spend = (star: number, reroll: number) => {
     if (!unlimited) setRes((r) => ({ starStone: r.starStone - star, rerollStone: r.rerollStone - reroll }))
@@ -65,60 +96,126 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     } else if (kind !== 'red') setWeapon((w) => ({ ...w, stars: to }))
   }
 
-  const starResult = (from: number, r: StarResult): number => (r === 'reset' ? 0 : r === 'drop' ? from - 1 : from + 1)
-
-  const doStar = () => {
-    const from = weapon.stars
-    const roll = Math.random()
-    let r: StarResult = roll < 0.5 ? 'success' : roll < 0.8 ? 'drop' : 'reset'
-    if (from === 0 && r !== 'success') r = 'success'
-    if (r === 'success' && stageOf(from + 1) !== stageOf(from)) r = 'evolve'
-    const to = starResult(from, r === 'evolve' ? 'success' : r)
-    spend(STAR_COST, 0)
-    play(r, to)
-    const key = r === 'success' || r === 'evolve' ? 'successes' : r === 'drop' ? 'drops' : 'resets'
-    log(`衝星 +${from}→+${to} ${{ success: '成功', evolve: '成功(進化)', drop: '掉星', reset: '歸零' }[r]}`, {
-      starAttempts: stats.starAttempts + 1,
-      [key]: stats[key] + 1,
-      starStoneUsed: stats.starStoneUsed + STAR_COST,
-    })
-  }
-
   const locked = weapon.slots.filter((s) => s?.locked).length
   const rerollCost = REROLL_BASE_COST + locked
+  const noStone = !unlimited && res.starStone < STAR_COST
+  const noReroll = !unlimited && res.rerollStone < rerollCost
+  const noTurns = turns !== undefined && turns <= 0
+  const exhausted = noTurns || (mode.kind === 'limited' && mode.preset !== 'turns' && noStone && res.rerollStone < 1)
+
+  const doStar = (): StarOutcome => {
+    const from = weapon.stars
+    const { outcome, to } = fakeStar(from)
+    spend(STAR_COST, 0)
+    if (outcome !== 'keep') play(outcome, to)
+    const key = STAR_COUNTER[outcome]
+    log(`衝星 +${from}→+${to} ${STAR_LABEL[outcome]}`, {
+      starAttempts: 1,
+      starStoneUsed: STAR_COST,
+      ...(key && { [key]: 1 }),
+    })
+    return outcome
+  }
 
   const toggleLock = (i: number) => {
     const s = weapon.slots[i]
     if (!s) return
     const lock = !s.locked
-    if (lock && !unlimited && res.rerollStone < 1) return
+    if (lock && (noTurns || (!unlimited && res.rerollStone < 1))) return
     const slots = [...weapon.slots] as Slots
     slots[i] = { ...s, locked: lock }
     setWeapon({ ...weapon, slots })
+    setResult(null)
     if (lock) {
       spend(0, 1)
-      log(`鎖定詞條 ${i + 1}`, { rerollStoneUsed: stats.rerollStoneUsed + 1 })
+      log(`鎖定詞條 ${i + 1}`, { rerollStoneUsed: 1 })
     } else log(`解除鎖定詞條 ${i + 1}`)
   }
 
-  const doReroll = (m: 'affix' | 'lv') => {
-    const after = weapon.slots.map((s) => (s && !s.locked ? fakeRoll(s, m, rand(12) === 0) : s)) as Slots
+  /** 採用範圍內洗出紅詞條時,展示台紅光爆發 */
+  const burstRed = (before: Slots, after: Slots, apply: boolean[]) => {
+    const i = after.findIndex((s, i) => apply[i] && s && s !== before[i] && tierOfLv(s.lv) === 'red')
+    if (i < 0) return false
+    setAuraPreview(undefined)
+    setFx({ kind: 'red', n: ++n.current, slot: i })
+    return true
+  }
+
+  const rollOnce = (m: RerollMode) => {
+    const before = weapon.slots
+    const after = fakeReroll(before, m)
     spend(0, rerollCost)
-    setPending({ title: m === 'affix' ? '詞條變更' : '數值重洗', after })
-    setStats((s) => ({ ...s, rerolls: s.rerolls + 1, rerollStoneUsed: s.rerollStoneUsed + rerollCost }))
+    log(`洗練 ${MODE_LABEL[m]}`, { rerolls: 1, rerollStoneUsed: rerollCost })
+    return { n: ++rolls.current, mode: m, before, after }
+  }
+
+  const doReroll = (m: RerollMode) => {
+    const roll = rollOnce(m)
+    const { before, after } = roll
+    const up = higher(before, after)
+    if (m === 'lv' && autoDiscard && !up.some(Boolean)) {
+      setResult({ ...roll, status: 'discarded', checks: up })
+      log(`${lvChanges(before, after)},自動放棄`)
+      return
+    }
+    const checks = m === 'lv' ? up : after.map((s, i) => !before[i] && !!s)
+    setResult({ ...roll, status: 'pending', checks })
+    burstRed(before, after, [true, true, true])
   }
 
   const resolve = (apply: boolean) => {
-    if (!pending) return
-    const t = pending.title
-    if (apply) {
-      const redIdx = pending.after.findIndex((s, i) => s && tierOfLv(s.lv) === 'red' && s.lv !== weapon.slots[i]?.lv)
-      setWeapon((w) => ({ ...w, slots: pending.after }))
-      if (redIdx >= 0) setAuraPreview(undefined)
-      if (redIdx >= 0) setFx({ kind: 'red', n: ++n.current, slot: redIdx })
+    if (result?.status !== 'pending') return
+    const slots = weapon.slots.map((s, i) => (apply && result.checks[i] ? result.after[i] : s)) as Slots
+    const changed = slots.some((s, i) => s !== weapon.slots[i])
+    if (changed) {
+      setWeapon((w) => ({ ...w, slots }))
+      burstRed(weapon.slots, slots, result.checks)
     }
-    log(`洗練 ${t}(${apply ? '效果變更' : '效果維持'})`)
-    setPending(null)
+    log(`洗練 ${MODE_LABEL[result.mode]}(${changed ? '效果變更' : '效果維持'})`)
+    setResult(null)
+  }
+
+  const autoStarGoal = useRef(0)
+  const autoStar = useAutoRun((): StepResult => {
+    if (weapon.stars >= autoStarGoal.current) return { stop: 'goal' }
+    if (noTurns) return { stop: 'turns' }
+    if (noStone) return { stop: 'stone' }
+    const outcome = doStar()
+    return { used: STAR_COST, outcome, delay: AUTO_STAR_DELAY[outcome === 'success' || outcome === 'keep' ? 'normal' : outcome] }
+  })
+
+  /** 自動洗練作用的欄位:未鎖定且有詞條 */
+  const targets = weapon.slots.filter((s): s is NonNullable<AffixSlot> => !!s && !s.locked)
+  const reached = targets.every((s) => tierOfLv(s.lv) === 'red' || tierOfLv(s.lv) === tierTarget)
+
+  const autoReroll = useAutoRun((): StepResult => {
+    if (reached) return { stop: 'goal' }
+    if (noTurns) return { stop: 'turns' }
+    if (noReroll) return { stop: 'stone' }
+    const roll = rollOnce('lv')
+    const { before, after } = roll
+    const up = higher(before, after)
+    const slots = before.map((s, i) => (up[i] ? after[i] : s)) as Slots
+    setWeapon((w) => ({ ...w, slots }))
+    const any = up.some(Boolean)
+    setResult({ ...roll, status: any ? 'auto' : 'discarded', checks: up })
+    if (!any) log(`${lvChanges(before, after)},自動放棄`)
+    const red = burstRed(before, slots, up)
+    return { used: rerollCost, delay: AUTO_REROLL_DELAY[red ? 'red' : 'normal'] }
+  })
+
+  const autoRunning = autoStar.running || autoReroll.running
+
+  const closeReroll = () => {
+    setRerollOpen(false)
+    setResult(null)
+    autoReroll.close()
+  }
+
+  const toggleAuto = (v: boolean) => {
+    setAutoOn(v)
+    autoStar.close()
+    autoReroll.close()
   }
 
   // 開發面板
@@ -141,16 +238,20 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     }
   }
 
-  const noStone = !unlimited && res.starStone < STAR_COST
-  const noReroll = !unlimited && res.rerollStone < rerollCost
-  const exhausted = (turns !== undefined && turns <= 0) || (mode.kind === 'limited' && mode.preset !== 'turns' && noStone && res.rerollStone < 1)
-
+  // 有待決結果或自動摘要還開著時,先不結算
+  const holding = busy || result?.status === 'pending' || !!autoStar.run || !!autoReroll.run
   useEffect(() => {
-    if (exhausted && !busy && !pending) {
+    if (exhausted && !holding) {
       const t = setTimeout(() => onFinish(weapon, stats), 1200)
       return () => clearTimeout(t)
     }
-  }, [exhausted, busy, pending]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [exhausted, holding]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const used: Resources = { starStone: stats.starStoneUsed, rerollStone: stats.rerollStoneUsed }
+  const totalNote = mode.kind === 'infinite' ? `本局累計消耗:升星石 ${used.starStone} / 洗練石 ${used.rerollStone}` : undefined
+  const stoneText = unlimited
+    ? `本局累計消耗洗練石 ${used.rerollStone}${turns !== undefined ? ` · 剩餘次數 ${turns}` : ''}`
+    : `洗練石剩餘 ${res.rerollStone}${noReroll ? `(本次需 ${rerollCost},不足)` : ''}`
 
   const tabBtn = (id: 'star' | 'reroll', label: string) => (
     <button
@@ -165,7 +266,12 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
   return (
     <div className="lg:h-dvh lg:overflow-hidden">
     <main ref={main} className="mx-auto flex max-w-6xl flex-col gap-3 p-3 lg:h-full">
-      <TopBar mode={mode} resources={res} turnsLeft={turns} onFinish={() => onFinish(weapon, stats)} onRestart={onRestart} />
+      <TopBar
+        mode={mode} resources={res} used={used} turnsLeft={turns}
+        autoOn={autoOn} onAuto={toggleAuto} autoLocked={autoRunning}
+        finishDisabled={busy || autoRunning}
+        onFinish={() => onFinish(weapon, stats)} onRestart={onRestart}
+      />
       {exhausted && <div className="border border-tier-red bg-tier-red/10 p-2 text-center text-tier-red" role="alert">資源已耗盡,即將結算…</div>}
 
       <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-2 lg:grid-rows-1">
@@ -182,30 +288,84 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
               {tabBtn('reroll', '洗練台')}
             </div>
             {tab === 'star' ? (
-              <StarPanel stars={weapon.stars} disabled={busy || noStone || exhausted} onStar={doStar} />
+              <StarPanel
+                stars={weapon.stars}
+                disabled={busy || autoRunning || noStone || exhausted}
+                onStar={doStar}
+                auto={autoOn ? {
+                  run: autoStar.run,
+                  target: starTarget,
+                  onTarget: setStarTarget,
+                  disabled: busy || noStone || exhausted,
+                  onStart: (t) => {
+                    setStarTarget(t)
+                    autoStarGoal.current = t
+                    autoStar.start()
+                  },
+                  onStop: autoStar.stop,
+                  onClose: autoStar.close,
+                  totalNote,
+                } : undefined}
+              />
             ) : (
-              <RerollPanel slots={weapon.slots} disabled={busy || noReroll || exhausted} onToggleLock={toggleLock} onReroll={doReroll} />
+              <RerollPanel slots={weapon.slots} disabled={busy || autoRunning || exhausted} onOpen={() => setRerollOpen(true)} />
             )}
           </div>
           <StatsPanel stats={stats} />
           <DevPanel
-            stars={weapon.stars} disabled={busy} onSetStars={devSet} onFx={devFx}
+            stars={weapon.stars} disabled={busy || autoRunning} onSetStars={devSet} onFx={devFx}
             auraPreview={auraPreview} onAuraPreview={setAuraPreview}
           />
         </section>
       </div>
 
-      {pending && (
-        <CompareModal
-          title={pending.title}
-          before={weapon.slots}
-          after={pending.after}
-          onKeep={() => resolve(false)}
-          onApply={() => resolve(true)}
-        />
-      )}
       <span className="sr-only">{weapon.slots.map(affixText).join(',')}</span>
     </main>
+
+      {rerollOpen && (
+        <CompareModal
+          slots={weapon.slots}
+          result={result}
+          cost={rerollCost}
+          stoneText={stoneText}
+          canReroll={{
+            affix: !noReroll && !exhausted && locked < weapon.slots.length,
+            lv: !noReroll && !exhausted && targets.length > 0,
+          }}
+          lockBlocked={noTurns ? '操作次數已用完' : !unlimited && res.rerollStone < 1 ? '洗練石不足,無法鎖定' : null}
+          autoDiscard={autoDiscard}
+          onAutoDiscard={setAutoDiscard}
+          running={autoReroll.running}
+          onStop={autoReroll.stop}
+          onReroll={(m) => {
+            autoReroll.close()
+            doReroll(m)
+          }}
+          onToggleCheck={(i) => setResult((r) => r && { ...r, checks: r.checks.map((c, j) => (j === i ? !c : c)) })}
+          onApply={() => resolve(true)}
+          onKeep={() => resolve(false)}
+          onToggleLock={toggleLock}
+          onClose={closeReroll}
+          auto={autoOn ? (
+            <AutoRerollPanel
+              run={autoReroll.run}
+              target={tierTarget}
+              onTarget={setTierTarget}
+              blocked={
+                result?.status === 'pending' ? '請先採用或維持目前的新結果'
+                  : targets.length === 0 ? '沒有可洗的詞條(全部鎖定或為空欄)'
+                    : reached ? '未鎖定的詞條都已達目標'
+                      : noReroll || exhausted ? '洗練石或次數不足'
+                        : null
+              }
+              onStart={autoReroll.start}
+              onStop={autoReroll.stop}
+              onClose={autoReroll.close}
+              totalNote={totalNote}
+            />
+          ) : undefined}
+        />
+      )}
     </div>
   )
 }

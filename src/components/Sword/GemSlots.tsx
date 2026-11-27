@@ -27,7 +27,7 @@ export default function GemSlots({ slots, fx }: { slots: AffixSlot[]; fx: Weapon
                 </>
               )}
             </svg>
-            {burst && <span key={fx.n} className="fx-gem-burst pointer-events-none absolute inset-0 rounded-full bg-current" aria-hidden />}
+            {burst && <span key={fx.n} className="fx-gem-burst pointer-events-none absolute inset-0 rounded-full bg-tier-red" aria-hidden />}
           </li>
         )
       })}
