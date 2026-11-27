@@ -7,8 +7,17 @@ interface Props {
   mode: RerollMode
   before: Weapon['slots']
   after: Weapon['slots']
+  /** null = 尚未決定;之後按鈕換成繼續 / 關閉視窗 */
+  applied: boolean | null
+  /** 再洗一次的消耗 */
+  cost: number
+  stoneText: string
+  canContinue: boolean
   onApply: () => void
   onKeep: () => void
+  /** 以同一種洗練方式再洗一次 */
+  onContinue: () => void
+  onClose: () => void
 }
 
 const TITLE: Record<RerollMode, string> = { affix: '詞條變更', lv: '數值重洗' }
@@ -19,9 +28,9 @@ function diffOf(a: AffixSlot, b: AffixSlot): Diff {
   const up = 'text-zone-safe'
   const flat = 'text-muted'
   if (!a && !b) return { text: '＝', color: flat }
-  if (!a) return { text: '新增', color: up }
+  if (!a) return { text: '新', color: 'text-cyan' }
   if (!b) return { text: '消失', color: flat }
-  if (a.id !== b.id) return { text: '變更', color: 'text-cyan' }
+  if (a.id !== b.id) return { text: '新', color: 'text-cyan' }
   if (b.lv > a.lv) return { text: '▲', color: up }
   if (b.lv < a.lv) return { text: '▼', color: flat }
   return { text: '＝', color: flat }
@@ -47,10 +56,16 @@ const Key = ({ k }: { k: string }) => (
   <kbd className="ml-2 hidden border border-current px-1 text-xs font-normal opacity-80 lg:inline">{k}</kbd>
 )
 
-/** 洗練結果:新舊對照,只能選擇改變或維持 */
-export default function CompareModal({ mode, before, after, onApply, onKeep }: Props) {
+/** 洗練結果:新舊對照,選擇改變或維持後可繼續洗或關閉 */
+export default function CompareModal(props: Props) {
+  const { mode, before, after, applied, canContinue } = props
+  const decided = applied !== null
   const dialog = useRef<HTMLDivElement>(null)
   useEffect(() => dialog.current?.focus(), [])
+
+  // 左右按鈕位置固定:決定前 改變 / 維持,決定後 繼續 / 關閉視窗
+  const primary = () => (!decided ? props.onApply() : canContinue && props.onContinue())
+  const secondary = () => (decided ? props.onClose() : props.onKeep())
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -61,8 +76,8 @@ export default function CompareModal({ mode, before, after, onApply, onKeep }: P
       if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Escape') return
       e.preventDefault()
       if (e.repeat) return
-      if (e.key === 'Escape') onKeep()
-      else onApply()
+      if (e.key === 'Escape') secondary()
+      else primary()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -76,9 +91,16 @@ export default function CompareModal({ mode, before, after, onApply, onKeep }: P
         role="dialog"
         aria-modal="true"
         aria-label={`${TITLE[mode]}結果`}
+        // 滑鼠點按鈕不取走焦點,快捷鍵維持一致
+        onMouseDown={(e) => (e.target as HTMLElement).closest('button') && e.preventDefault()}
         className="max-h-full w-full max-w-xl space-y-3 overflow-y-auto border border-cyan bg-panel p-3 shadow-glowStrong outline-none"
       >
-        <h2 className="text-lg font-bold text-cyan">{TITLE[mode]} · 新舊對照</h2>
+        <div>
+          <h2 className="text-lg font-bold text-cyan" aria-live="polite">
+            {TITLE[mode]} · {decided ? (applied ? '已改變' : '已維持') : '新舊對照'}
+          </h2>
+          <p className="text-xs text-muted">{props.stoneText}</p>
+        </div>
         <ul className="space-y-2">
           {before.map((old, i) => {
             const next = after[i]
@@ -109,8 +131,17 @@ export default function CompareModal({ mode, before, after, onApply, onKeep }: P
           })}
         </ul>
         <div className="grid grid-cols-2 gap-2">
-          <button className="btn-primary min-h-[52px]" onClick={onApply}>改變<Key k="Space" /></button>
-          <button className="btn min-h-[52px]" onClick={onKeep}>維持<Key k="Esc" /></button>
+          <button
+            className="btn-primary min-h-[52px]"
+            disabled={decided && !canContinue}
+            // 忽略連點的第二下,避免按「改變」時誤觸繼續
+            onClick={(e) => e.detail < 2 && primary()}
+          >
+            {decided ? `繼續 · 耗 ${props.cost}` : '改變'}<Key k="Space" />
+          </button>
+          <button className="btn min-h-[52px]" onClick={(e) => e.detail < 2 && secondary()}>
+            {decided ? '關閉視窗' : '維持'}<Key k="Esc" />
+          </button>
         </div>
       </div>
     </div>

@@ -47,8 +47,9 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
   const { quality } = useQuality()
   const main = useRef<HTMLElement>(null)
   const [busy, setBusy] = useState(false)
-  /** 待決定的洗練結果 */
-  const [pending, setPending] = useState<{ mode: RerollMode; after: Slots } | null>(null)
+  /** 洗練視窗內容;applied null = 尚未決定 */
+  const [roll, setRoll] = useState<{ id: number; mode: RerollMode; before: Slots; after: Slots; applied: boolean | null } | null>(null)
+  const rolls = useRef(0)
   /** 自動功能總開關(只存在記憶體) */
   const [autoOn, setAutoOn] = useState(false)
   const [starTarget, setStarTarget] = useState(0)
@@ -127,22 +128,25 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     setFx({ kind: 'red', n: ++n.current, slot: i })
   }
 
+  const canReroll = (m: RerollMode) =>
+    !noReroll && !exhausted && weapon.slots.some((s) => (m === 'affix' ? !s?.locked : s && !s.locked))
+
   const doReroll = (m: RerollMode) => {
     const after = fakeReroll(weapon.slots, m)
     spend(0, rerollCost)
     log(`洗練 ${MODE_LABEL[m]}`, { rerolls: 1, rerollStoneUsed: rerollCost })
-    setPending({ mode: m, after })
+    setRoll({ id: ++rolls.current, mode: m, before: weapon.slots, after, applied: null })
     burstRed(weapon.slots, after)
   }
 
   const resolve = (apply: boolean) => {
-    if (!pending) return
+    if (!roll || roll.applied !== null) return
     if (apply) {
-      setWeapon((w) => ({ ...w, slots: pending.after }))
-      burstRed(weapon.slots, pending.after)
+      setWeapon((w) => ({ ...w, slots: roll.after }))
+      burstRed(roll.before, roll.after)
     }
-    log(`洗練 ${MODE_LABEL[pending.mode]}(${apply ? '效果變更' : '效果維持'})`)
-    setPending(null)
+    log(`洗練 ${MODE_LABEL[roll.mode]}(${apply ? '效果變更' : '效果維持'})`)
+    setRoll({ ...roll, applied: apply })
   }
 
   const autoStarGoal = useRef(0)
@@ -180,8 +184,8 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     }
   }
 
-  // 有待決結果或自動摘要還開著時,先不結算
-  const holding = busy || !!pending || !!autoStar.run
+  // 洗練視窗或自動摘要還開著時,先不結算
+  const holding = busy || !!roll || !!autoStar.run
   useEffect(() => {
     if (exhausted && !holding) {
       const t = setTimeout(() => onFinish(weapon, stats), 1200)
@@ -252,7 +256,7 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
             ) : (
               <RerollPanel
                 slots={weapon.slots}
-                disabled={busy || autoRunning || exhausted || !!pending}
+                disabled={busy || autoRunning || exhausted || !!roll}
                 noReroll={noReroll}
                 lockBlocked={noTurns ? '操作次數已用完' : !unlimited && res.rerollStone < 1 ? '洗練石不足,無法鎖定' : null}
                 stoneText={stoneText}
@@ -272,13 +276,20 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
       <span className="sr-only">{weapon.slots.map(affixText).join(',')}</span>
     </main>
 
-      {pending && (
+      {roll && (
         <CompareModal
-          mode={pending.mode}
-          before={weapon.slots}
-          after={pending.after}
+          key={roll.id}
+          mode={roll.mode}
+          before={roll.before}
+          after={roll.after}
+          applied={roll.applied}
+          cost={rerollCost}
+          stoneText={stoneText}
+          canContinue={canReroll(roll.mode)}
           onApply={() => resolve(true)}
           onKeep={() => resolve(false)}
+          onContinue={() => doReroll(roll.mode)}
+          onClose={() => setRoll(null)}
         />
       )}
     </div>
