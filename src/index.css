@@ -60,12 +60,10 @@ body { background: #070b16; color: #e6f7ff; margin: 0; }
 .fx-gem-burst { animation: gem-burst .9s ease-out forwards; }
 .fx-warn { animation: warn-flash .5s ease-in-out 2 forwards; }
 
-/* 洗練視窗:新結果滑入、較好的列綠色微光、自動放棄閃一下 */
+/* 洗練視窗:新結果滑入、較好的列綠色微光 */
 @keyframes slide-in { from { opacity: 0; transform: translateX(16px) } to { opacity: 1; transform: none } }
-@keyframes discard-flash { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
 .fx-slide-in { animation: slide-in .18s ease-out; }
 .fx-better { box-shadow: 0 0 10px theme('colors.zone.safe'); }
-.fx-discard { animation: discard-flash .4s ease-in-out; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

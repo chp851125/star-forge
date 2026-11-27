@@ -8,8 +8,3 @@ export const AUTO_STAR_DELAY = {
   drop: 550,
   reset: 1000,
 }
-
-export const AUTO_REROLL_DELAY = {
-  normal: 900,
-  red: 1200,
-}
