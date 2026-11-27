@@ -4,6 +4,7 @@ import { GRADE_COLOR } from '../../config/grading'
 import { COPIED_MS } from '../../config/settle'
 import { buildShareText } from '../../core/settlement'
 import SwordStage from '../Sword/SwordStage'
+import RestartButton from '../ui/RestartButton'
 import AffixList from '../panels/AffixList'
 import { MilestoneList, StatSections } from '../panels/StatsPanel'
 import { buildRunSummary } from '../../core/summary'
@@ -71,7 +72,7 @@ export default function ResultScreen({ result, onRestart }: Props) {
               <button className="btn-primary" data-sound="none" onClick={doCopy} aria-live="polite">
                 {copy === 'copied' ? '已複製 ✓' : '複製成績文字'}
               </button>
-              <button className="btn" onClick={onRestart}>重新開始</button>
+              <RestartButton onRestart={onRestart} />
             </div>
             {copy === 'failed' && (
               <label className="block shrink-0 text-sm text-muted">

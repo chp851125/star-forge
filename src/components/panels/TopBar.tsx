@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { GameMode, Resources } from '../../types'
 import { LOW_REMAINING_RATIO, PRESET_LABEL } from '../../config/modes'
 import ConfirmPopover from '../ui/ConfirmPopover'
+import RestartButton from '../ui/RestartButton'
 import SoundControl from '../ui/SoundControl'
 import Switch from '../ui/Switch'
 
@@ -85,7 +86,7 @@ export default function TopBar(p: Props) {
           </button>
           {p.finishBlocked && <div className="text-xs leading-3 text-muted">{p.finishBlocked}</div>}
         </div>
-        <button className="btn whitespace-nowrap" onClick={p.onRestart}>重新開始</button>
+        <RestartButton onRestart={p.onRestart} />
       </div>
       {asking && (
         <ConfirmPopover
