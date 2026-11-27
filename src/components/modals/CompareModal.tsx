@@ -63,7 +63,7 @@ export default function CompareModal(props: Props) {
   const dialog = useRef<HTMLDivElement>(null)
   useEffect(() => dialog.current?.focus(), [])
 
-  // 左右按鈕位置固定:決定前 改變 / 維持,決定後 繼續 / 關閉視窗
+  // 快捷鍵:決定前 改變 / 維持,決定後 繼續 / 關閉視窗
   const primary = () => (!decided ? props.onApply() : canContinue && props.onContinue())
   const secondary = () => (decided ? props.onClose() : props.onKeep())
 
@@ -130,17 +130,19 @@ export default function CompareModal(props: Props) {
             )
           })}
         </ul>
+        {/* 四顆按鈕永遠顯示、位置固定,不可用時 disabled */}
         <div className="grid grid-cols-2 gap-2">
-          <button
-            className="btn-primary min-h-[52px]"
-            disabled={decided && !canContinue}
-            // 忽略連點的第二下,避免按「改變」時誤觸繼續
-            onClick={(e) => e.detail < 2 && primary()}
-          >
-            {decided ? `繼續 · 耗 ${props.cost}` : '改變'}<Key k="Space" />
+          <button className="btn-primary min-h-[52px]" disabled={decided} onClick={props.onApply}>
+            改變{!decided && <Key k="Space" />}
           </button>
-          <button className="btn min-h-[52px]" onClick={(e) => e.detail < 2 && secondary()}>
-            {decided ? '關閉視窗' : '維持'}<Key k="Esc" />
+          <button className="btn min-h-[52px]" disabled={decided} onClick={props.onKeep}>
+            維持{!decided && <Key k="Esc" />}
+          </button>
+          <button className="btn-primary col-span-2 min-h-[52px]" disabled={!decided || !canContinue} onClick={props.onContinue}>
+            繼續 · 耗 {props.cost}{decided && <Key k="Space" />}
+          </button>
+          <button className="btn col-span-2 min-h-[52px]" disabled={!decided} onClick={props.onClose}>
+            關閉視窗{decided && <Key k="Esc" />}
           </button>
         </div>
       </div>
