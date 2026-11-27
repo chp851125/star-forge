@@ -1,5 +1,5 @@
 import type { AffixSlot, Tier, ZoneKind } from '../types'
-import { tierOfLv } from '../config/affixes'
+import { getTier } from '../core/reroll'
 
 export const TIER_TEXT: Record<Tier, string> = {
   blue: 'text-tier-blue', purple: 'text-tier-purple', gold: 'text-tier-gold', red: 'text-tier-red',
@@ -25,7 +25,7 @@ export const AURA_CLASS = (t: Tier | null) => `aura-${t ?? 'cyan'}`
 
 const RANK: Tier[] = ['blue', 'purple', 'gold', 'red']
 
-export const slotTier = (s: AffixSlot): Tier | null => (s ? tierOfLv(s.lv) : null)
+export const slotTier = (s: AffixSlot): Tier | null => (s ? getTier(s.lv) : null)
 
 export function highestTier(tiers: (Tier | null)[]): Tier | null {
   let best = -1

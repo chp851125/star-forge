@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RerollMode, Weapon } from '../../types'
-import { REROLL_BASE_COST } from '../../config/balance'
+import { LOCK_COST } from '../../config/reroll'
+import { canAffixChange, canValueReroll, countLocked, getRerollCost } from '../../core/reroll'
 import ConfirmPopover from '../ui/ConfirmPopover'
 import { AffixRow } from './AffixList'
 
 interface Props {
   slots: Weapon['slots']
   disabled: boolean
-  /** 洗練石或次數不足以洗練 */
-  noReroll: boolean
+  /** 洗練石或次數不足以洗練的原因 */
+  rerollBlocked: string | null
   /** 有值時鎖定的「確定」disabled 並顯示原因 */
   lockBlocked: string | null
   /** 洗練石資訊 */
@@ -23,12 +24,18 @@ const Key = ({ k }: { k: string }) => (
 
 export default function RerollPanel(props: Props) {
   const { slots, disabled } = props
-  const locked = slots.filter((s) => s?.locked).length
-  const cost = REROLL_BASE_COST + locked
+  const locked = countLocked(slots)
+  const cost = getRerollCost(locked)
   const can: Record<RerollMode, boolean> = {
-    affix: !disabled && !props.noReroll && locked < slots.length,
-    lv: !disabled && !props.noReroll && slots.some((s) => s && !s.locked),
+    affix: !disabled && !props.rerollBlocked && canAffixChange(slots),
+    lv: !disabled && !props.rerollBlocked && canValueReroll(slots),
   }
+  const reasons = props.rerollBlocked
+    ? [props.rerollBlocked]
+    : [
+        !canAffixChange(slots) && '詞條變更:所有欄位皆已鎖定',
+        !canValueReroll(slots) && '數值重洗:沒有未鎖定的詞條',
+      ].filter(Boolean)
   const lockBtns = useRef<(HTMLButtonElement | null)[]>([])
   const [lockAsk, setLockAsk] = useState<number | null>(null)
   const askLock = (i: number) => !disabled && slots[i] && setLockAsk(i)
@@ -71,8 +78,9 @@ export default function RerollPanel(props: Props) {
       </ul>
 
       <div className="text-sm text-muted">
-        洗練消耗:洗練石 ×<span className="text-lg font-bold text-cyan">{cost}</span>(1 + 鎖定 {locked} 條)· 鎖定動作另耗 1 顆
+        洗練消耗:洗練石 ×<span className="text-lg font-bold text-cyan">{cost}</span>(1 + 鎖定 {locked} 條)· 鎖定動作另耗 {LOCK_COST} 顆
         <div>{props.stoneText}</div>
+        {reasons.length > 0 && <div className="text-tier-red">{reasons.join(';')}</div>}
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -90,7 +98,7 @@ export default function RerollPanel(props: Props) {
           message={
             asked.locked
               ? '解除鎖定後,此詞條會在洗練時被重洗,每次洗練消耗 −1。確定解除?'
-              : '鎖定此詞條將消耗 1 洗練石,之後每次洗練消耗 +1。確定鎖定?'
+              : `鎖定此詞條將消耗 ${LOCK_COST} 洗練石,之後每次洗練消耗 +1。確定鎖定?`
           }
           blocked={asked.locked ? null : props.lockBlocked}
           onConfirm={() => {

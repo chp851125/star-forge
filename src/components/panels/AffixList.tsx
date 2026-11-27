@@ -1,11 +1,11 @@
 import type { AffixSlot, WeaponEvent } from '../../types'
-import { AFFIX_MAP, TIER_NAME, affixValue, tierOfLv } from '../../config/affixes'
+import { AFFIX_MAP, TIER_NAME } from '../../config/affixes'
+import { getAttributeValue, getTier } from '../../core/reroll'
 import { TIER_BG, TIER_BORDER, TIER_TEXT } from '../tierStyle'
 
 export function affixText(s: AffixSlot): string {
   if (!s) return '(空欄)'
-  const d = AFFIX_MAP[s.id]
-  return `${d.name} +${affixValue(d, s.lv)}${d.unit}`
+  return `${AFFIX_MAP[s.id].name} +${getAttributeValue(s.id, s.lv)}%`
 }
 
 export function AffixRow({ slot, burst, compact = false }: { slot: AffixSlot; burst?: boolean; compact?: boolean }) {
@@ -16,7 +16,7 @@ export function AffixRow({ slot, burst, compact = false }: { slot: AffixSlot; bu
       </div>
     )
   }
-  const t = tierOfLv(slot.lv)
+  const t = getTier(slot.lv)
   return (
     <div
       className={`flex min-h-[44px] items-center justify-between gap-2 border px-3 py-1 ${TIER_BORDER[t]} ${TIER_BG[t]} ${burst ? 'fx-red-burst' : ''}`}
@@ -35,7 +35,7 @@ export default function AffixList({ slots, fx }: { slots: AffixSlot[]; fx: Weapo
     <ul className="w-full shrink-0 space-y-1" aria-label="詞條摘要">
       {slots.map((s, i) => {
         const burst = fx?.kind === 'red' && fx.slot === i
-        const t = s ? tierOfLv(s.lv) : null
+        const t = s ? getTier(s.lv) : null
         const d = s ? AFFIX_MAP[s.id] : null
         return (
           <li
@@ -50,7 +50,7 @@ export default function AffixList({ slots, fx }: { slots: AffixSlot[]; fx: Weapo
             {s && d ? (
               <>
                 <span className="flex-1 truncate font-semibold">{d.name}</span>
-                <span className="font-bold">+{affixValue(d, s.lv)}{d.unit}</span>
+                <span className="font-bold">+{getAttributeValue(s.id, s.lv)}%</span>
                 <span className="w-10 text-right">Lv{s.lv}</span>
               </>
             ) : (

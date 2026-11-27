@@ -1,12 +1,13 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
-import type { AffixSlot, GameMode, RerollMode, Resources, RunStats, Tier, Weapon, WeaponEvent } from '../../types'
-import { MAX_STAR, REROLL_BASE_COST } from '../../config/balance'
+import type { GameMode, RerollMode, Resources, RunStats, Tier, Weapon, WeaponEvent } from '../../types'
+import { MAX_STAR } from '../../config/balance'
 import { WEAPON_STYLE } from '../../config/weapons'
-import { tierOfLv } from '../../config/affixes'
+import { AFFIXES } from '../../config/affixes'
+import { LOCK_COST, REROLL_BASE_COST } from '../../config/reroll'
 import { AUTO_STAR_SPEED } from '../../config/auto'
 import { describeEnhance, getEnhanceCost } from '../../core/enhance'
+import { RANDOMS_PER_REROLL, canAffixChange, canValueReroll, countLocked, getRerollCost } from '../../core/reroll'
 import { createGame, gameReducer, isUnlimited } from '../../state/gameReducer'
-import { fakeReroll, fakeRoll, mockWeapon, rand } from '../../mock/mockState'
 import SwordStage from '../Sword/SwordStage'
 import { SHATTER_MS } from '../Sword/WeaponArt'
 import { useQuality } from '../Sword/quality'
@@ -26,20 +27,18 @@ interface Props {
 }
 
 type Slots = Weapon['slots']
-const MODE_LABEL: Record<RerollMode, string> = { affix: '詞條變更', lv: '數值重洗' }
+const randomRolls = () => Array.from({ length: RANDOMS_PER_REROLL }, () => Math.random())
 
 export default function MainScreen({ mode, onFinish, onRestart }: Props) {
-  const [state, dispatch] = useReducer(gameReducer, mode, (m) => createGame(m, mockWeapon.slots))
+  const [state, dispatch] = useReducer(gameReducer, mode, (m) => createGame(m))
   const { weapon, resources: res, turnsLeft: turns, stats, log, lastEvent, lastResult, autoSession } = state
+  const { rerollPhase, pendingReroll, lastRerollKind, lastDecision } = state
   const unlimited = isUnlimited(mode)
   const [tab, setTab] = useState<'star' | 'reroll'>('star')
   /** 開發面板的階級色預覽;undefined = 跟隨詞條 */
   const [auraPreview, setAuraPreview] = useState<Tier | null | undefined>(undefined)
   const { quality } = useQuality()
   const main = useRef<HTMLElement>(null)
-  /** 洗練視窗內容;applied null = 尚未決定 */
-  const [roll, setRoll] = useState<{ id: number; mode: RerollMode; before: Slots; after: Slots; applied: boolean | null } | null>(null)
-  const rolls = useRef(0)
   /** 自動功能總開關(只存在記憶體) */
   const [autoOn, setAutoOn] = useState(false)
   const [starTarget, setStarTarget] = useState(0)
@@ -64,54 +63,19 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     return () => clearTimeout(t)
   }, [busy, lastEvent?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const locked = weapon.slots.filter((s) => s?.locked).length
-  const rerollCost = REROLL_BASE_COST + locked
+  const rerollCost = getRerollCost(countLocked(weapon.slots))
   const noStone = !unlimited && res.starStone < (getEnhanceCost(stars, protect) ?? 0)
   const noReroll = !unlimited && res.rerollStone < rerollCost
   const noTurns = turns !== undefined && turns <= 0
-  const exhausted = noTurns || (!unlimited && res.starStone < (getEnhanceCost(stars, false) ?? 0) && res.rerollStone < 1)
+  const exhausted = noTurns || (!unlimited && res.starStone < (getEnhanceCost(stars, false) ?? 0) && res.rerollStone < REROLL_BASE_COST)
+  const rerollBlocked = noTurns ? '操作次數已用完' : noReroll ? '洗練石不足' : null
+  const canContinue =
+    !rerollBlocked && (lastRerollKind === 'lv' ? canValueReroll(weapon.slots) : canAffixChange(weapon.slots))
 
-  const toggleLock = (i: number) => {
-    const s = weapon.slots[i]
-    if (!s) return
-    const lock = !s.locked
-    if (lock && (noTurns || (!unlimited && res.rerollStone < 1))) return
-    const slots = [...weapon.slots] as Slots
-    slots[i] = { ...s, locked: lock }
-    dispatch({ type: 'SET_SLOTS', slots })
-    dispatch(
-      lock
-        ? { type: 'REROLL_RECORD', message: `鎖定詞條 ${i + 1}`, stones: 1 }
-        : { type: 'REROLL_RECORD', message: `解除鎖定詞條 ${i + 1}` },
-    )
-  }
-
-  /** 洗出紅詞條時,展示台紅光爆發 */
-  const burstRed = (before: Slots, after: Slots) => {
-    const i = after.findIndex((s, i) => s && s !== before[i] && tierOfLv(s.lv) === 'red')
-    if (i < 0) return
+  /** 洗練時,開發面板的階級色預覽改回跟隨詞條 */
+  const doReroll = (kind: RerollMode) => {
     setAuraPreview(undefined)
-    dispatch({ type: 'PREVIEW_FX', kind: 'red', slot: i })
-  }
-
-  const canReroll = (m: RerollMode) =>
-    !noReroll && !exhausted && weapon.slots.some((s) => (m === 'affix' ? !s?.locked : s && !s.locked))
-
-  const doReroll = (m: RerollMode) => {
-    const after = fakeReroll(weapon.slots, m)
-    dispatch({ type: 'REROLL_RECORD', message: `洗練 ${MODE_LABEL[m]}`, rerolls: 1, stones: rerollCost })
-    setRoll({ id: ++rolls.current, mode: m, before: weapon.slots, after, applied: null })
-    burstRed(weapon.slots, after)
-  }
-
-  const resolve = (apply: boolean) => {
-    if (!roll || roll.applied !== null) return
-    if (apply) {
-      dispatch({ type: 'SET_SLOTS', slots: roll.after })
-      burstRed(roll.before, roll.after)
-    }
-    dispatch({ type: 'REROLL_RECORD', message: `洗練 ${MODE_LABEL[roll.mode]}(${apply ? '效果變更' : '效果維持'})` })
-    setRoll({ ...roll, applied: apply })
+    dispatch({ type: 'REROLL', kind, rolls: randomRolls() })
   }
 
   const toggleAuto = (v: boolean) => {
@@ -125,8 +89,9 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     const s = weapon.stars
     if (k === 'red') {
       const slots = [...weapon.slots] as Slots
-      const i = rand(3)
-      slots[i] = { ...(slots[i] ?? fakeRoll(null, 'affix')!), lv: 15 } as AffixSlot
+      const i = Math.floor(Math.random() * slots.length)
+      const unused = AFFIXES.find((d) => !slots.some((x) => x?.id === d.id))!
+      slots[i] = { ...(slots[i] ?? { id: unused.id, locked: false }), lv: 15 }
       dispatch({ type: 'SET_SLOTS', slots })
       setAuraPreview(undefined)
       dispatch({ type: 'PREVIEW_FX', kind: k, slot: i })
@@ -213,11 +178,11 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
             ) : (
               <RerollPanel
                 slots={weapon.slots}
-                disabled={busy || autoRunning || exhausted || !!roll}
-                noReroll={noReroll}
-                lockBlocked={noTurns ? '操作次數已用完' : !unlimited && res.rerollStone < 1 ? '洗練石不足,無法鎖定' : null}
+                disabled={busy || autoRunning || exhausted || rerollPhase !== 'idle'}
+                rerollBlocked={rerollBlocked}
+                lockBlocked={noTurns ? '操作次數已用完' : !unlimited && res.rerollStone < LOCK_COST ? '洗練石不足,無法鎖定' : null}
                 stoneText={stoneText}
-                onToggleLock={toggleLock}
+                onToggleLock={(i) => dispatch({ type: 'TOGGLE_LOCK', slotIndex: i })}
                 onReroll={doReroll}
               />
             )}
@@ -233,20 +198,27 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
       <span className="sr-only">{weapon.slots.map(affixText).join(',')}</span>
     </main>
 
-      {roll && (
+      {rerollPhase !== 'idle' && lastRerollKind && (
         <CompareModal
-          rollId={roll.id}
-          mode={roll.mode}
-          before={roll.before}
-          after={roll.after}
-          applied={roll.applied}
+          rollId={stats.rerolls}
+          mode={lastRerollKind}
+          before={weapon.slots}
+          after={pendingReroll?.candidate ?? weapon.slots}
+          applied={lastDecision === null ? null : lastDecision === 'adopt'}
           cost={rerollCost}
           stoneText={stoneText}
-          canContinue={canReroll(roll.mode)}
-          onApply={() => resolve(true)}
-          onKeep={() => resolve(false)}
-          onContinue={() => doReroll(roll.mode)}
-          onClose={() => setRoll(null)}
+          canContinue={canContinue}
+          continueBlocked={rerollBlocked}
+          onApply={() => {
+            setAuraPreview(undefined)
+            dispatch({ type: 'DECIDE_ADOPT' })
+          }}
+          onKeep={() => dispatch({ type: 'DECIDE_KEEP' })}
+          onContinue={() => {
+            setAuraPreview(undefined)
+            dispatch({ type: 'CONTINUE', rolls: randomRolls() })
+          }}
+          onClose={() => dispatch({ type: 'CLOSE_REROLL' })}
         />
       )}
     </div>

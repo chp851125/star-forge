@@ -1,36 +1,28 @@
-import type { AffixDef, Tier } from '../types'
+import type { AffixDef, AffixId, Tier } from '../types'
 
+const def = (id: AffixId, name: string, weight: number, min: number, max: number): AffixDef => ({
+  id, name, weight, min, max,
+})
+
+/** 佔位值:def(id, 名稱, 出現權重, Lv1 數值, Lv15 數值);數值單位皆為 % */
 export const AFFIXES: AffixDef[] = [
-  { id: 'attack', name: '攻擊力', min: 5, max: 50, unit: '%' },
-  { id: 'critRate', name: '暴擊率', min: 2, max: 30, unit: '%' },
-  { id: 'critDmg', name: '暴擊傷害', min: 10, max: 100, unit: '%' },
-  { id: 'elemDmg', name: '元素傷害', min: 5, max: 60, unit: '%' },
-  { id: 'attackSpeed', name: '攻擊速度', min: 3, max: 25, unit: '%' },
-  { id: 'penetration', name: '穿透', min: 2, max: 30, unit: '%' },
-  { id: 'bossDmg', name: '對首領傷害', min: 5, max: 50, unit: '%' },
-  { id: 'chargeDmg', name: '蓄力斬傷害', min: 8, max: 80, unit: '%' },
-  { id: 'chargeSpeed', name: '蓄力速度', min: 3, max: 30, unit: '%' },
-  { id: 'lifesteal', name: '吸血', min: 1, max: 15, unit: '%' },
-  { id: 'cooldown', name: '冷卻縮減', min: 2, max: 25, unit: '%' },
-  { id: 'maxHp', name: '最大生命', min: 50, max: 800, unit: '' },
-  { id: 'defense', name: '防禦力', min: 5, max: 120, unit: '' },
-  { id: 'moveSpeed', name: '移動速度', min: 2, max: 20, unit: '%' },
-  { id: 'dashDistance', name: '衝刺距離', min: 5, max: 40, unit: '%' },
+  def('attack', '攻擊力', 10, 5, 15),
+  def('critRate', '暴擊率', 8, 2, 7),
+  def('critDmg', '暴擊傷害', 8, 6, 20),
+  def('elemDmg', '元素傷害', 8, 9, 29),
+  def('attackSpeed', '攻擊速度', 7, 3, 10),
+  def('penetration', '穿透', 7, 4, 14),
+  def('bossDmg', '對首領傷害', 6, 8, 25),
+  def('chargeDmg', '蓄力斬傷害', 7, 5, 15),
+  def('chargeSpeed', '蓄力速度', 6, 2, 6),
+  def('lifesteal', '吸血', 5, 1, 5),
+  def('cooldown', '冷卻縮減', 6, 3, 10),
+  def('maxHp', '最大生命', 7, 5, 15),
+  def('defense', '防禦力', 6, 5, 15),
+  def('moveSpeed', '移動速度', 5, 3, 10),
+  def('dashDistance', '衝刺距離', 5, 3, 10),
 ]
 
-export const AFFIX_MAP: Record<string, AffixDef> = Object.fromEntries(AFFIXES.map((a) => [a.id, a]))
-
-/** Lv → 階級(Lv1~5 藍 / 6~10 紫 / 11~14 金 / 15 紅) */
-export function tierOfLv(lv: number): Tier {
-  if (lv >= 15) return 'red'
-  if (lv >= 11) return 'gold'
-  if (lv >= 6) return 'purple'
-  return 'blue'
-}
+export const AFFIX_MAP = Object.fromEntries(AFFIXES.map((a) => [a.id, a])) as Record<AffixId, AffixDef>
 
 export const TIER_NAME: Record<Tier, string> = { blue: '普通', purple: '稀有', gold: '傳說', red: '頂規' }
-
-/** 線性分級數值 */
-export function affixValue(def: AffixDef, lv: number): number {
-  return Math.round(def.min + ((def.max - def.min) * (lv - 1)) / 14)
-}

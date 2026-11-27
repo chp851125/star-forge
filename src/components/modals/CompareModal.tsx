@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import type { AffixSlot, RerollMode, Weapon } from '../../types'
-import { AFFIX_MAP, affixValue, tierOfLv } from '../../config/affixes'
+import type { AffixSlot, RerollMode, SlotChange, Weapon } from '../../types'
+import { compareSlots, getTier } from '../../core/reroll'
+import { affixText } from '../panels/AffixList'
 import { TIER_BG, TIER_BORDER, TIER_TEXT } from '../tierStyle'
 
 interface Props {
@@ -15,6 +16,8 @@ interface Props {
   cost: number
   stoneText: string
   canContinue: boolean
+  /** 無法繼續的原因 */
+  continueBlocked: string | null
   onApply: () => void
   onKeep: () => void
   /** 以同一種洗練方式再洗一次 */
@@ -24,28 +27,22 @@ interface Props {
 
 const TITLE: Record<RerollMode, string> = { affix: '詞條變更', lv: '數值重洗' }
 
-type Diff = { text: string; color: string }
-
-function diffOf(a: AffixSlot, b: AffixSlot): Diff {
-  const up = 'text-zone-safe'
-  const flat = 'text-muted'
-  if (!a && !b) return { text: '＝', color: flat }
-  if (!a) return { text: '新', color: 'text-cyan' }
-  if (!b) return { text: '消失', color: flat }
-  if (a.id !== b.id) return { text: '新', color: 'text-cyan' }
-  if (b.lv > a.lv) return { text: '▲', color: up }
-  if (b.lv < a.lv) return { text: '▼', color: flat }
-  return { text: '＝', color: flat }
+const DIFF: Record<SlotChange, { text: string; color: string }> = {
+  up: { text: '▲', color: 'text-zone-safe' },
+  down: { text: '▼', color: 'text-muted' },
+  same: { text: '＝', color: 'text-muted' },
+  changed: { text: '新', color: 'text-cyan' },
+  added: { text: '新', color: 'text-cyan' },
+  removed: { text: '消失', color: 'text-muted' },
 }
 
 function Cell({ slot, extra, className = '' }: { slot: AffixSlot; extra?: ReactNode; className?: string }) {
-  const t = slot ? tierOfLv(slot.lv) : null
-  const d = slot ? AFFIX_MAP[slot.id] : null
+  const t = slot ? getTier(slot.lv) : null
   return (
     <div
       className={`flex h-14 min-w-0 flex-col justify-center border px-2 text-sm leading-tight ${t ? `${TIER_BORDER[t]} ${TIER_BG[t]} ${TIER_TEXT[t]}` : 'border-dashed border-muted/50 text-muted'} ${className}`}
     >
-      <span className="truncate font-semibold">{slot && d ? `${d.name} +${affixValue(d, slot.lv)}${d.unit}` : '(空欄)'}</span>
+      <span className="truncate font-semibold">{affixText(slot)}</span>
       <span className="flex justify-between gap-1 text-xs">
         <span>{slot ? `Lv${slot.lv}` : ''}</span>
         {extra}
@@ -62,6 +59,7 @@ const Key = ({ k }: { k: string }) => (
 export default function CompareModal(props: Props) {
   const { mode, before, after, applied, canContinue } = props
   const decided = applied !== null
+  const changes = compareSlots(before, after)
   const dialog = useRef<HTMLDivElement>(null)
   useEffect(() => dialog.current?.focus(), [])
 
@@ -102,7 +100,10 @@ export default function CompareModal(props: Props) {
           <h2 className="text-lg font-bold text-cyan" aria-live="polite">
             {TITLE[mode]} · {decided ? (applied ? '已改變' : '已維持') : '新舊對照'}
           </h2>
-          <p className="text-xs text-muted">{props.stoneText}</p>
+          <p className="text-xs text-muted">
+            {props.stoneText}
+            {decided && props.continueBlocked && <span className="ml-2 text-tier-red">無法繼續:{props.continueBlocked}</span>}
+          </p>
         </div>
         <ul className="space-y-2">
           {before.map((old, i) => {
@@ -111,15 +112,15 @@ export default function CompareModal(props: Props) {
             if (decided) {
               return (
                 <li key={i} className="flex h-16 flex-col justify-center">
-                  <Cell slot={applied ? next : old} />
+                  <Cell slot={old} />
                 </li>
               )
             }
             // 鎖定列與沒有洗到的列不顯示新結果
             const rolled = next !== old
             const better = rolled && !!next && (!old || next.lv > old.lv)
-            const diff = diffOf(old, next)
-            const red = rolled && !!next && tierOfLv(next.lv) === 'red'
+            const diff = DIFF[changes[i]]
+            const red = rolled && !!next && getTier(next.lv) === 'red'
             return (
               <li key={i} className="grid h-16 grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] items-center gap-2">
                 <Cell slot={old} />

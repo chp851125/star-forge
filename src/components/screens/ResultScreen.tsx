@@ -5,13 +5,13 @@ import { AffixRow, affixText } from '../panels/AffixList'
 import { StatGrid } from '../panels/StatsPanel'
 import { modeLabel } from '../panels/TopBar'
 import { GRADE_THRESHOLDS } from '../../config/grading'
-import { tierOfLv } from '../../config/affixes'
+import { getTier } from '../../core/reroll'
 
 const PTS = { blue: 1, purple: 2, gold: 3, red: 4 }
 
 /** 假評級:僅供預覽,真規則之後實作 */
 function fakeGrade(w: Weapon): Grade {
-  const score = w.stars + w.slots.reduce((a, s) => a + (s ? PTS[tierOfLv(s.lv)] : 0), 0)
+  const score = w.stars + w.slots.reduce((a, s) => a + (s ? PTS[getTier(s.lv)] : 0), 0)
   return GRADE_THRESHOLDS.find((g) => score >= g.min)!.grade
 }
 

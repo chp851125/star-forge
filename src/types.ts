@@ -8,9 +8,12 @@ export type AffixId =
 export interface AffixDef {
   id: AffixId
   name: string
+  /** 出現權重 */
+  weight: number
+  /** Lv1 數值(%) */
   min: number
+  /** Lv15 數值(%) */
   max: number
-  unit: string
 }
 
 /** null = 空欄;lv 為 1~15 */
@@ -44,6 +47,11 @@ export interface RunStats {
   maxFailStreak: number
   highestStar: number
   rerolls: number
+  /** 鎖定條數 ≥ 1 時的洗練次數 */
+  lockedRerolls: number
+  /** 洗出金階以上(含紅)的詞條數,不論是否採用 */
+  goldPlusRolled: number
+  redRolled: number
   starStoneUsed: number
   rerollStoneUsed: number
 }
@@ -53,6 +61,9 @@ export type EnhanceOutcome = 'success' | 'keep' | 'drop' | 'reset'
 export type StarEffect = EnhanceOutcome | 'evolve'
 export type AutoStopReason = 'target' | 'noResource' | 'cancelled'
 export type RerollMode = 'affix' | 'lv'
+/** idle:視窗關閉;pending:等待改變 / 維持;decided:可繼續或關閉 */
+export type RerollPhase = 'idle' | 'pending' | 'decided'
+export type SlotChange = 'up' | 'down' | 'same' | 'changed' | 'added' | 'removed'
 
 export type ZoneKind = 'safe' | 'drop' | 'reset'
 export type Grade = 'S' | 'A' | 'B' | 'C'
