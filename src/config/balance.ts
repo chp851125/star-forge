@@ -1,20 +1,36 @@
-import type { StarOdds, ZoneKind } from '../types'
+import type { EnhanceStep, ZoneKind } from '../types'
 
-const odds = (success: number, keep: number, drop = 0, reset = 0): StarOdds => ({ success, keep, drop, reset })
+export const MAX_STAR = 15
 
-/** 佔位值(%):index = 目前星級(0~14),嘗試升到下一級的結果分布 */
-export const STAR_ODDS: StarOdds[] = [
-  odds(100, 0), odds(100, 0), odds(95, 5), odds(90, 10), odds(85, 15), odds(80, 20),
-  odds(70, 20, 10), odds(62, 23, 15), odds(55, 25, 20), odds(48, 27, 25), odds(42, 28, 30), odds(36, 29, 35),
-  odds(30, 45, 0, 25), odds(25, 45, 0, 30), odds(20, 45, 0, 35),
+const row = (success: number, keep: number, drop: number, reset: number, cost: number): EnhanceStep => ({
+  rates: { success, keep, drop, reset },
+  cost,
+})
+
+/** 佔位值:index = 目前星級(0~14);row(成功%, 維持%, 掉星%, 歸零%, 升星石消耗),機率加總須為 100 */
+export const ENHANCE_TABLE: EnhanceStep[] = [
+  row(95, 5, 0, 0, 1),
+  row(90, 10, 0, 0, 1),
+  row(85, 15, 0, 0, 1),
+  row(80, 20, 0, 0, 2),
+  row(75, 25, 0, 0, 2),
+  row(65, 0, 35, 0, 3),
+  row(60, 0, 40, 0, 3),
+  row(55, 0, 45, 0, 4),
+  row(50, 0, 50, 0, 5),
+  row(45, 0, 55, 0, 6),
+  row(40, 0, 60, 0, 8),
+  row(35, 0, 65, 0, 10),
+  row(35, 0, 35, 30, 12),
+  row(30, 0, 30, 40, 15),
+  row(25, 0, 25, 50, 20),
 ]
 
-/** 區間:+0~5 安全、+6~11 失敗掉星、+12~14 失敗歸零 */
-export function zoneOf(stars: number): ZoneKind {
-  if (stars <= 5) return 'safe'
-  if (stars <= 11) return 'drop'
-  return 'reset'
-}
+/** 防歸零:僅歸零機率 > 0 的星級可選;歸零改為掉 1 星,消耗乘上倍率 */
+export const PROTECTION = { enabled: true, costMultiplier: 2 }
+
+/** 保底:連續掉星達指定次數,下一次衝星必定成功(消耗照算) */
+export const PITY = { enabled: true, consecutiveDropsNeeded: 2 }
 
 export const ZONE_LABEL: Record<ZoneKind, string> = {
   safe: '安全區:失敗維持星級',
@@ -22,6 +38,4 @@ export const ZONE_LABEL: Record<ZoneKind, string> = {
   reset: '歸零區:失敗可能歸零回 +0',
 }
 
-export const MAX_STARS = 15
-export const STAR_COST = 1
 export const REROLL_BASE_COST = 1

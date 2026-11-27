@@ -1,16 +1,17 @@
 import { useState } from 'react'
-import { MAX_STARS, STAR_ODDS, zoneOf } from '../../config/balance'
+import { ENHANCE_TABLE, MAX_STAR } from '../../config/balance'
+import { getZone } from '../../core/enhance'
 import { ZONE_TEXT } from '../tierStyle'
 
 /** 15 格星級條:hover / 點按顯示該級成功率 */
 export default function StarBar({ stars }: { stars: number }) {
   const [sel, setSel] = useState<number | null>(null)
-  const label = (i: number) => `+${i} → +${i + 1} 成功率 ${STAR_ODDS[i].success}%`
+  const label = (i: number) => `+${i} → +${i + 1} 成功率 ${ENHANCE_TABLE[i].rates.success}%`
 
   return (
     <div onMouseLeave={() => setSel(null)}>
       <div className="grid grid-cols-5 gap-x-1 md:grid-cols-[repeat(15,minmax(0,1fr))] md:gap-x-0.5">
-        {Array.from({ length: MAX_STARS }, (_, i) => (
+        {Array.from({ length: MAX_STAR }, (_, i) => (
           <button
             key={i}
             type="button"
@@ -27,7 +28,7 @@ export default function StarBar({ stars }: { stars: number }) {
           </button>
         ))}
       </div>
-      <div className={`min-h-[20px] text-center text-sm ${sel === null ? 'text-muted' : ZONE_TEXT[zoneOf(sel)]}`} aria-live="polite">
+      <div className={`min-h-[20px] text-center text-sm ${sel === null ? 'text-muted' : ZONE_TEXT[getZone(sel)]}`} aria-live="polite">
         {sel === null ? '點按星格查看成功率' : label(sel)}
       </div>
     </div>

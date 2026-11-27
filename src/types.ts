@@ -33,17 +33,25 @@ export type GameMode =
 export interface RunStats {
   starAttempts: number
   successes: number
+  keeps: number
   drops: number
   resets: number
+  pityCount: number
+  /** 目前連成 / 連敗(非成功)次數 */
+  successStreak: number
+  failStreak: number
+  maxSuccessStreak: number
+  maxFailStreak: number
+  highestStar: number
   rerolls: number
   starStoneUsed: number
   rerollStoneUsed: number
-  log: string[]
 }
 
-export type StarResult = 'success' | 'evolve' | 'drop' | 'reset'
-/** 單次衝星結果(含不產生特效的「維持」) */
-export type StarOutcome = StarResult | 'keep'
+export type EnhanceOutcome = 'success' | 'keep' | 'drop' | 'reset'
+/** 衝星特效種類(跨階段成功為 evolve) */
+export type StarEffect = EnhanceOutcome | 'evolve'
+export type AutoStopReason = 'target' | 'noResource' | 'cancelled'
 export type RerollMode = 'affix' | 'lv'
 
 export type ZoneKind = 'safe' | 'drop' | 'reset'
@@ -64,7 +72,7 @@ export interface WeaponStyle {
 }
 
 export interface WeaponEvent {
-  kind: StarResult | 'red'
+  kind: StarEffect | 'red'
   /** 流水號,變動時重播特效 */
   n: number
   /** 洗出紅詞條的欄位 */
@@ -76,9 +84,10 @@ export interface WeaponEvent {
 export type FxQuality = 'high' | 'medium' | 'low' | 'off'
 
 /** 升星結果機率(百分比整數,四項加總 100) */
-export interface StarOdds {
-  success: number
-  keep: number
-  drop: number
-  reset: number
+export type EnhanceRates = Record<EnhanceOutcome, number>
+
+export interface EnhanceStep {
+  rates: EnhanceRates
+  /** 升星石消耗(不含防歸零加成) */
+  cost: number
 }

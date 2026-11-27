@@ -52,7 +52,13 @@ export default function TopBar(p: Props) {
           ]}
         />
       ) : (
-        <Res label="本局累計消耗" items={[['升星石', String(used.starStone)], ['洗練石', String(used.rerollStone)]]} />
+        <Res
+          label="剩餘(本局累計消耗)"
+          items={[
+            ['升星石', `∞(${used.starStone})`],
+            ['洗練石', `∞(${used.rerollStone})`],
+          ]}
+        />
       )}
       {mode.kind === 'limited' && turnsLeft !== undefined && (
         <Res label="剩餘 / 總次數" items={[['次數', `${turnsLeft} / ${mode.turns}`]]} />

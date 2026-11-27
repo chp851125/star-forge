@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FxQuality, Tier, WeaponEvent } from '../../types'
-import { MAX_STARS } from '../../config/balance'
+import { MAX_STAR } from '../../config/balance'
 import { useQuality } from '../Sword/quality'
 
 interface Props {
@@ -52,7 +52,7 @@ export default function DevPanel({ stars, disabled, onSetStars, onFx, auraPrevie
       <label className="flex items-center gap-3 text-sm">
         星級 +{stars}
         <input
-          type="range" min={0} max={MAX_STARS} value={stars} disabled={disabled}
+          type="range" min={0} max={MAX_STAR} value={stars} disabled={disabled}
           onChange={(e) => onSetStars(Number(e.target.value))}
           className="h-11 flex-1 accent-cyan"
           aria-label="設定星級"

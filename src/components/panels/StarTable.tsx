@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { STAR_ODDS, zoneOf } from '../../config/balance'
+import { ENHANCE_TABLE } from '../../config/balance'
+import { getZone } from '../../core/enhance'
 import { ZONE_BG, ZONE_TEXT } from '../tierStyle'
 
 const ZONE_SHORT = { safe: '安全', drop: '掉星', reset: '歸零' }
@@ -21,8 +22,8 @@ export default function StarTable({ stars }: { stars: number }) {
               </tr>
             </thead>
             <tbody>
-              {STAR_ODDS.map((o, i) => {
-                const z = zoneOf(i)
+              {ENHANCE_TABLE.map(({ rates: o }, i) => {
+                const z = getZone(i)
                 return (
                   <tr key={i} className={`${ZONE_BG[z]} ${i === stars ? 'font-bold outline outline-1 outline-ink' : ''}`} aria-current={i === stars || undefined}>
                     <th scope="row" className="whitespace-nowrap px-1 py-1 text-ink">+{i}→+{i + 1}</th>
