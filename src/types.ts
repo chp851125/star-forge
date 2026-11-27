@@ -117,6 +117,15 @@ export interface WeaponEvent {
 
 export type FxQuality = 'high' | 'medium' | 'low' | 'off'
 
+export type SoundId =
+  | 'hammer' | 'success' | 'evolve' | 'keep' | 'drop' | 'reset' | 'pity' | 'roll'
+  | 'blue' | 'purple' | 'gold' | 'red' | 'lock' | 'unlock' | 'click' | 'confirm' | 'error' | 'stamp'
+
+export interface SoundCue {
+  id: SoundId
+  delayMs: number
+}
+
 /** 升星結果機率(百分比整數,四項加總 100) */
 export type EnhanceRates = Record<EnhanceOutcome, number>
 

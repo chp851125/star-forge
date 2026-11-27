@@ -101,6 +101,7 @@ export default function RerollPanel(props: Props) {
               : `鎖定此詞條將消耗 ${LOCK_COST} 洗練石,之後每次洗練消耗 +1。確定鎖定?`
           }
           blocked={asked.locked ? null : props.lockBlocked}
+          sound={asked.locked ? 'unlock' : 'lock'}
           onConfirm={() => {
             props.onToggleLock(lockAsk)
             setLockAsk(null)

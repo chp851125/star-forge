@@ -3,12 +3,14 @@ import type { GameMode } from './types'
 import ModeSelect from './components/screens/ModeSelect'
 import MainScreen from './components/screens/MainScreen'
 import { QualityProvider } from './components/Sword/quality'
+import { useButtonSounds } from './audio/useButtonSounds'
 
 type Screen =
   | { name: 'mode' }
   | { name: 'main'; mode: GameMode; run: number }
 
 export default function App() {
+  useButtonSounds()
   return (
     <QualityProvider>
       <Screens />

@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { FxQuality, Tier, WeaponEvent } from '../../types'
 import { MAX_STAR } from '../../config/balance'
 import { useQuality } from '../Sword/quality'
+import { play } from '../../audio/engine'
+import { SOUND_IDS } from '../../audio/sounds'
 
 interface Props {
   stars: number
@@ -85,6 +87,12 @@ export default function DevPanel({ stars, disabled, onSetStars, onFx, auraPrevie
           >
             {label}
           </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="音效試聽">
+        音效試聽
+        {SOUND_IDS.map((id) => (
+          <button key={id} className="btn px-2" data-sound="none" onClick={() => play(id)}>{id}</button>
         ))}
       </div>
       </>

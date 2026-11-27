@@ -60,14 +60,14 @@ export default function AutoStarPanel({ stars, ...p }: AutoStarProps & { stars: 
               {session.tries && p.lastResult ? describeEnhance(p.lastResult.from, p.lastResult) : '準備中'}
             </span>
           </div>
-          <button className="btn-danger min-h-[52px] w-full text-lg" onClick={p.onStop}>中斷</button>
+          <button className="btn-danger min-h-[52px] w-full text-lg" data-sound="none" onClick={p.onStop}>中斷</button>
         </>
       ) : maxed ? (
         <p className="text-center text-sm text-muted">已達上限,無法自動升星</p>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <NumberStepper label="目標星級" value={p.target} min={stars + 1} max={MAX_STAR} onChange={p.onTarget} />
-          <button className="btn grow" disabled={p.disabled} onClick={() => p.onStart(p.target)}>開始自動升星</button>
+          <button className="btn grow" disabled={p.disabled} data-sound="none" onClick={() => p.onStart(p.target)}>開始自動升星</button>
         </div>
       )}
     </section>

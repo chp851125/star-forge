@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import type { AffixSlot, RerollMode, SlotChange, Weapon } from '../../types'
+import type { AffixSlot, RerollMode, SlotChange, SoundId, Weapon } from '../../types'
+import { play } from '../../audio/engine'
 import { compareSlots, getTier } from '../../core/reroll'
 import { affixText } from '../panels/AffixList'
 import { TIER_BG, TIER_BORDER, TIER_TEXT } from '../tierStyle'
@@ -63,9 +64,19 @@ export default function CompareModal(props: Props) {
   const dialog = useRef<HTMLDivElement>(null)
   useEffect(() => dialog.current?.focus(), [])
 
+  // 按鈕與快捷鍵共用:播音效後執行
+  const act = (sound: SoundId, run: () => void) => () => {
+    play(sound)
+    run()
+  }
+  const apply = act('confirm', props.onApply)
+  const keep = act('click', props.onKeep)
+  const again = act('click', props.onContinue)
+  const close = act('click', props.onClose)
+
   // 快捷鍵:決定前 改變 / 維持,決定後 繼續 / 關閉視窗
-  const primary = () => (!decided ? props.onApply() : canContinue && props.onContinue())
-  const secondary = () => (decided ? props.onClose() : props.onKeep())
+  const primary = () => (!decided ? apply() : canContinue && again())
+  const secondary = () => (decided ? close() : keep())
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -144,16 +155,16 @@ export default function CompareModal(props: Props) {
         </ul>
         {/* 四顆按鈕永遠顯示、位置固定,不可用時 disabled */}
         <div className="grid grid-cols-2 gap-2">
-          <button className="btn-primary min-h-[52px]" disabled={decided} onClick={props.onApply}>
+          <button className="btn-primary min-h-[52px]" disabled={decided} data-sound="none" onClick={apply}>
             改變{!decided && <Key k="Space" />}
           </button>
-          <button className="btn min-h-[52px]" disabled={decided} onClick={props.onKeep}>
+          <button className="btn min-h-[52px]" disabled={decided} data-sound="none" onClick={keep}>
             維持{!decided && <Key k="Esc" />}
           </button>
-          <button className="btn-primary col-span-2 min-h-[52px]" disabled={!decided || !canContinue} onClick={props.onContinue}>
+          <button className="btn-primary col-span-2 min-h-[52px]" disabled={!decided || !canContinue} data-sound="none" onClick={again}>
             繼續 · 耗 {props.cost}{decided && <Key k="Space" />}
           </button>
-          <button className="btn col-span-2 min-h-[52px]" disabled={!decided} onClick={props.onClose}>
+          <button className="btn col-span-2 min-h-[52px]" disabled={!decided} data-sound="none" onClick={close}>
             關閉視窗{decided && <Key k="Esc" />}
           </button>
         </div>
