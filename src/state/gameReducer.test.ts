@@ -48,7 +48,7 @@ describe('ENHANCE', () => {
   })
 
   it('歸零與掉星不影響詞條欄位', () => {
-    const dropped = run(at(6), lose)
+    const dropped = run(at(8), lose)
     const reset = run(at(14), lose)
     expect(dropped.lastResult?.outcome).toBe('drop')
     expect(reset.lastResult?.outcome).toBe('reset')
@@ -79,11 +79,11 @@ describe('autoSession', () => {
   const start: GameAction = { type: 'AUTO_START', target: 10, protect: false }
 
   it('累計次數、結果與消耗', () => {
-    const s = run(at(5), start, win, lose)
+    const s = run(at(7), start, win, lose)
     expect(s.autoSession).toMatchObject({
-      active: true, startStar: 5, tries: 2,
+      active: true, startStar: 7, tries: 2,
       counts: { success: 1, keep: 0, drop: 1, reset: 0 },
-      used: ENHANCE_TABLE[5].cost + ENHANCE_TABLE[6].cost,
+      used: ENHANCE_TABLE[7].cost + ENHANCE_TABLE[8].cost,
     })
     expect(s.lastEvent?.auto).toBe(true)
   })
@@ -180,12 +180,19 @@ describe('洗練', () => {
     expect(unlocked.stats.rerollStoneUsed).toBe(1)
   })
 
-  it('空欄、石頭不足、非 idle 時不可鎖定', () => {
+  it('decided 時可鎖定與解除,繼續時依新鎖定數扣石頭', () => {
+    const decided = run(createGame(stones(10), slots), reroll, keep)
+    const locked = run(decided, lock(1))
+    expect(locked.rerollPhase).toBe('decided')
+    expect(locked.weapon.slots[1]?.locked).toBe(true)
+    expect(run(locked, lock(1)).weapon.slots[1]?.locked).toBe(false)
+    expect(run(decided, lock(0), cont).resources.rerollStone).toBe(10 - 2 - 1)
+  })
+
+  it('空欄、石頭不足時不可鎖定', () => {
     const idle = createGame(stones(0), slots)
     expect(gameReducer(idle, lock(2))).toBe(idle)
     expect(gameReducer(idle, lock(1))).toBe(idle)
-    const decided = run(createGame(infinite, slots), reroll, keep)
-    expect(gameReducer(decided, lock(1))).toBe(decided)
   })
 
   it('統計:次數、鎖定洗練、金 / 紅洗出數、洗練石消耗', () => {
@@ -238,7 +245,7 @@ describe('actionsUsed 與里程碑', () => {
     const reached = run(before, win)
     const spent = ENHANCE_TABLE.slice(0, 5).reduce((a, r) => a + r.cost, 0)
     expect(reached.milestones).toEqual([{ star: 5, enhanceStoneSpent: spent, rerollStoneSpent: 2, attempts: 5 }])
-    const again = run(reached, lose, win)
+    const again = run(reached, { type: 'SET_STARS', stars: 4 }, win)
     expect(again.weapon.stars).toBe(5)
     expect(again.milestones).toEqual(reached.milestones)
   })

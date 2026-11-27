@@ -5,7 +5,7 @@ interface Input {
   star: number
   target: number
   stones: number
-  /** 下一次的消耗(含防歸零加成) */
+  /** 下一次的消耗(含護鑄加成) */
   nextCost: number
   unlimited: boolean
 }

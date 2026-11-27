@@ -1,4 +1,4 @@
-import type { EnhanceOutcome, EnhanceStep, ZoneKind } from '../types'
+import type { EnhanceOutcome, EnhanceRates, EnhanceStep, ZoneKind } from '../types'
 import { ENHANCE_TABLE, MAX_STAR, PITY, PROTECTION } from '../config/balance'
 
 export interface EnhanceResult {
@@ -25,11 +25,18 @@ export function canProtect(star: number): boolean {
   return PROTECTION.enabled && (getEnhanceStep(star)?.rates.reset ?? 0) > 0
 }
 
-/** 本次消耗(含防歸零加成);不可衝時回傳 null */
+/** 本次消耗(含護鑄加成);不可衝時回傳 null */
 export function getEnhanceCost(star: number, protect: boolean): number | null {
   const step = getEnhanceStep(star)
   if (!step) return null
   return protect && canProtect(star) ? step.cost * PROTECTION.costMultiplier : step.cost
+}
+
+/** 實際套用的機率:護鑄生效時歸零併入維持;已達上限回傳 null */
+export function getEffectiveRates(star: number, protect: boolean): EnhanceRates | null {
+  const rates = getEnhanceStep(star)?.rates
+  if (!rates) return null
+  return protect && canProtect(star) ? { ...rates, keep: rates.keep + rates.reset, reset: 0 } : rates
 }
 
 export const isPityReady = (consecutiveDrops: number) =>
@@ -50,16 +57,17 @@ interface RollInput {
 
 /** 擲一次衝星;已達上限回傳 null */
 export function rollEnhance({ star, protect, consecutiveDrops, rng = Math.random }: RollInput): EnhanceResult | null {
-  const step = getEnhanceStep(star)
+  const rates = getEffectiveRates(star, protect)
   const cost = getEnhanceCost(star, protect)
-  if (!step || cost === null) return null
+  if (!rates || cost === null) return null
 
   const pityTriggered = isPityReady(consecutiveDrops)
   let outcome: EnhanceOutcome = 'success'
   if (!pityTriggered) {
+    // 以原始機率擲骰再轉換,讓歸零區間固定落在最後
     let left = rng() * 100
-    outcome = ORDER.find((o) => (left -= step.rates[o]) < 0) ?? 'success'
-    if (outcome === 'reset' && protect && canProtect(star)) outcome = 'drop'
+    outcome = ORDER.find((o) => (left -= getEnhanceStep(star)!.rates[o]) < 0) ?? 'success'
+    if (outcome === 'reset' && rates.reset === 0) outcome = 'keep'
   }
   const newStar =
     outcome === 'success' ? star + 1

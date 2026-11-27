@@ -1,6 +1,6 @@
 import { ENHANCE_TABLE, MAX_STAR, PITY, PROTECTION, ZONE_LABEL } from '../../config/balance'
 import { WEAPON_STYLE, stageOf } from '../../config/weapons'
-import { canProtect, getEnhanceCost, getEnhanceStep, getZone, isPityReady } from '../../core/enhance'
+import { canProtect, getEffectiveRates, getEnhanceCost, getEnhanceStep, getZone, isPityReady } from '../../core/enhance'
 import type { EnhanceOutcome, ZoneKind } from '../../types'
 import { ZONE_BORDER, ZONE_TEXT } from '../tierStyle'
 import StarTable from './StarTable'
@@ -40,12 +40,14 @@ function zoneRange(z: ZoneKind): string {
 export default function StarPanel(props: Props) {
   const { stars, protect, stones, auto } = props
   const step = getEnhanceStep(stars)
+  const rates = getEffectiveRates(stars, protect)
+  const guarded = protect && canProtect(stars)
   const zone = getZone(stars)
   const cost = getEnhanceCost(stars, protect)
   const short = cost !== null && stones !== null && stones < cost
   const pity = isPityReady(props.consecutiveDrops)
 
-  // 自動升星設定中:目標路上會遇到歸零星級時,也要能先勾防歸零
+  // 自動升星設定中:目標路上會遇到歸零星級時,也要能先設定護鑄
   const autoNeedsProtect = !!auto && !auto.session && Array.from({ length: auto.target }, (_, i) => i).some(canProtect)
   const showProtect = canProtect(stars) || autoNeedsProtect || (!!auto?.session?.active && auto.session.protect)
   const protectedCost = getEnhanceCost(stars, true)
@@ -65,24 +67,24 @@ export default function StarPanel(props: Props) {
         </div>
       </div>
 
-      {step && (
+      {step && rates && (
         <>
           <div className="flex h-3 overflow-hidden border border-cyan/30 bg-bg" aria-hidden>
             {OUTCOMES.map(([key, , , bar]) => (
-              <span key={key} className={bar} style={{ width: `${step.rates[key]}%` }} />
+              <span key={key} className={bar} style={{ width: `${rates[key]}%` }} />
             ))}
           </div>
           <dl className="grid grid-cols-4 gap-2" aria-label="本次結果機率">
             {OUTCOMES.map(([key, name, color]) => (
-              <div key={key} className={`border border-cyan/20 bg-bg/50 py-0.5 text-center ${step.rates[key] ? color : 'text-muted'}`}>
+              <div key={key} className={`border border-cyan/20 bg-bg/50 py-0.5 text-center ${rates[key] ? color : 'text-muted'}`}>
                 <dt className="text-xs">{name}</dt>
-                <dd className="text-lg font-bold leading-6">{step.rates[key]}%</dd>
+                <dd className="text-lg font-bold leading-6">{rates[key]}%</dd>
               </div>
             ))}
           </dl>
           <div className={`border px-3 py-1 text-sm font-semibold ${ZONE_BORDER[zone]} ${ZONE_TEXT[zone]}`}>
-            {ZONE_LABEL[zone]}
-            {step.rates.reset > 0 && <span className="font-normal"> · 歸零不影響詞條</span>}
+            {guarded ? `${PROTECTION.name}生效:不會歸零,仍可能掉星` : ZONE_LABEL[zone]}
+            {rates.reset > 0 && <span className="font-normal"> · 歸零不影響詞條</span>}
           </div>
         </>
       )}
@@ -113,8 +115,8 @@ export default function StarPanel(props: Props) {
             onChange={(e) => props.onProtect(e.target.checked)}
           />
           <span>
-            <span className="font-semibold text-cyan">防歸零</span>
-            <span className="text-muted"> · 失敗時不歸零,改為掉 1 星,消耗 ×{PROTECTION.costMultiplier}</span>
+            <span className="font-semibold text-cyan">{PROTECTION.name}</span>
+            <span className="text-muted"> · 歸零改為維持(不防掉星),僅歸零區生效,消耗 ×{PROTECTION.costMultiplier}</span>
           </span>
         </label>
       )}

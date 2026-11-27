@@ -9,6 +9,8 @@ interface Props {
   message: string
   /** 有值時「確定」disabled 並顯示原因 */
   blocked?: string | null
+  /** 預設焦點放在「取消」,避免連按 Enter 直接確定 */
+  cautious?: boolean
   /** 按下「確定」的音效 */
   sound?: SoundId
   onConfirm: () => void
@@ -18,7 +20,7 @@ interface Props {
 const GAP = 8
 
 /** 輕量確認浮層:Enter 確定、Esc 取消 */
-export default function ConfirmPopover({ anchor, message, blocked, sound = 'confirm', onConfirm, onCancel }: Props) {
+export default function ConfirmPopover({ anchor, message, blocked, cautious, sound = 'confirm', onConfirm, onCancel }: Props) {
   // 按鈕與快捷鍵共用:播音效後執行
   const accept = () => {
     play(sound)
@@ -48,7 +50,7 @@ export default function ConfirmPopover({ anchor, message, blocked, sound = 'conf
     return () => window.removeEventListener('resize', place)
   }, [anchor])
 
-  useEffect(() => (blocked ? cancel : ok).current?.focus(), [blocked])
+  useEffect(() => (blocked || cautious ? cancel : ok).current?.focus(), [blocked, cautious])
 
   // capture 階段攔截,避免觸發底層視窗的快捷鍵
   useEffect(() => {

@@ -1,9 +1,11 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { AffixSlot, RerollMode, SlotChange, SoundId, Weapon } from '../../types'
 import { play } from '../../audio/engine'
 import { compareSlots, getTier } from '../../core/reroll'
 import { affixText } from '../panels/AffixList'
 import { TIER_BG, TIER_BORDER, TIER_TEXT } from '../tierStyle'
+import ConfirmPopover from '../ui/ConfirmPopover'
+import LockConfirm from '../ui/LockConfirm'
 
 interface Props {
   /** 每洗一次遞增,只重播新結果列的動畫(視窗本身不重掛,避免閃爍) */
@@ -19,6 +21,10 @@ interface Props {
   canContinue: boolean
   /** 無法繼續的原因 */
   continueBlocked: string | null
+  /** 有值時鎖定的「確定」disabled 並顯示原因 */
+  lockBlocked: string | null
+  /** 僅決定後可用 */
+  onToggleLock: (i: number) => void
   onApply: () => void
   onKeep: () => void
   /** 以同一種洗練方式再洗一次 */
@@ -70,20 +76,48 @@ export default function CompareModal(props: Props) {
     run()
   }
   const apply = act('confirm', props.onApply)
-  const keep = act('click', props.onKeep)
+  const keepNow = act('click', props.onKeep)
+  const keepBtn = useRef<HTMLButtonElement>(null)
+  const [keepAsk, setKeepAsk] = useState(false)
+  /** 本次洗出與原本不同的紅詞條,維持前需再確認 */
+  const losingRed = !decided && after.some((next, i) => {
+    const old = before[i]
+    return !!next && next !== old && getTier(next.lv) === 'red' && (old?.id !== next.id || old.lv !== next.lv)
+  })
+  const keep = () => {
+    if (!losingRed) return keepNow()
+    play('click')
+    setKeepAsk(true)
+  }
+  const closeAsk = () => {
+    setKeepAsk(false)
+    dialog.current?.focus()
+  }
+  const lockBtns = useRef<(HTMLButtonElement | null)[]>([])
+  const [lockAsk, setLockAsk] = useState<number | null>(null)
+  const askLock = (i: number) => {
+    if (decided && before[i]) setLockAsk(i)
+  }
+  const asked = lockAsk === null ? null : before[lockAsk]
   const again = act('click', props.onContinue)
   const close = act('click', props.onClose)
 
-  // 快捷鍵:決定前 改變 / 維持,決定後 繼續 / 關閉視窗
+  // 快捷鍵:決定前 改變 / 維持,決定後 繼續 / 關閉視窗 / 1~3 切換鎖定
   const primary = () => (!decided ? apply() : canContinue && again())
   const secondary = () => (decided ? close() : keep())
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 確認浮層開啟時,按鍵交給浮層
+      if (keepAsk || lockAsk !== null) return
       if (e.ctrlKey || e.metaKey || e.altKey) return
       const el = e.target as HTMLElement
       // 以 Tab 聚焦在視窗按鈕上時,Enter / Space 交給原生行為
       if ((e.key === 'Enter' || e.key === ' ') && el.matches('button') && dialog.current?.contains(el)) return
+      if (!e.repeat && (e.key === '1' || e.key === '2' || e.key === '3')) {
+        play('click')
+        return askLock(Number(e.key) - 1)
+      }
       if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Escape') return
       e.preventDefault()
       if (e.repeat) return
@@ -122,8 +156,19 @@ export default function CompareModal(props: Props) {
             // 決定後只顯示目前詞條,不再做新舊對照
             if (decided) {
               return (
-                <li key={i} className="flex h-16 flex-col justify-center">
-                  <Cell slot={old} />
+                <li key={i} className="flex h-16 items-center gap-2">
+                  <div className="min-w-0 flex-1"><Cell slot={old} /></div>
+                  <button
+                    ref={(el) => { lockBtns.current[i] = el }}
+                    className={`btn w-28 shrink-0 px-2 ${old?.locked ? 'bg-cyan/40' : ''}`}
+                    disabled={!old}
+                    aria-pressed={!!old?.locked}
+                    title={old ? undefined : '空欄不能鎖定'}
+                    onClick={() => askLock(i)}
+                  >
+                    {!old ? '不可鎖' : old.locked ? '🔒 已鎖' : '🔓 鎖定'}
+                    <Key k={String(i + 1)} />
+                  </button>
                 </li>
               )
             }
@@ -158,7 +203,7 @@ export default function CompareModal(props: Props) {
           <button className="btn-primary min-h-[52px]" disabled={decided} data-sound="none" onClick={apply}>
             改變{!decided && <Key k="Space" />}
           </button>
-          <button className="btn min-h-[52px]" disabled={decided} data-sound="none" onClick={keep}>
+          <button ref={keepBtn} className="btn min-h-[52px]" disabled={decided} data-sound="none" onClick={keep}>
             維持{!decided && <Key k="Esc" />}
           </button>
           <button className="btn-primary col-span-2 min-h-[52px]" disabled={!decided || !canContinue} data-sound="none" onClick={again}>
@@ -168,6 +213,35 @@ export default function CompareModal(props: Props) {
             關閉視窗{decided && <Key k="Esc" />}
           </button>
         </div>
+        {keepAsk && !decided && (
+          <ConfirmPopover
+            anchor={keepBtn.current!}
+            message="本次洗出紅詞條!維持原詞條將放棄它,確定維持?"
+            cautious
+            sound="click"
+            onConfirm={() => {
+              closeAsk()
+              props.onKeep()
+            }}
+            onCancel={closeAsk}
+          />
+        )}
+        {lockAsk !== null && asked && (
+          <LockConfirm
+            anchor={lockBtns.current[lockAsk]!}
+            locked={asked.locked}
+            blocked={props.lockBlocked}
+            onConfirm={() => {
+              props.onToggleLock(lockAsk)
+              setLockAsk(null)
+              dialog.current?.focus()
+            }}
+            onCancel={() => {
+              setLockAsk(null)
+              dialog.current?.focus()
+            }}
+          />
+        )}
       </div>
     </div>
   )

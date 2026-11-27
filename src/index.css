@@ -5,6 +5,17 @@
 html, body, #root { min-height: 100%; }
 body { background: #070b16; color: #e6f7ff; margin: 0; }
 
+/* 捲軸:細青色,配合面板風格 */
+:root { color-scheme: dark; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: theme('colors.cyan.DEFAULT / 35%'); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: theme('colors.cyan.DEFAULT / 65%'); }
+::-webkit-scrollbar-corner { background: transparent; }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: theme('colors.cyan.DEFAULT / 35%') transparent; }
+}
+
 @layer components {
   .bevel { clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
   .panel { @apply bevel bg-panel shadow-glow; border: 1px solid rgba(45, 226, 230, 0.4); }
