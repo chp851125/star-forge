@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Tier, WeaponEvent } from '../../types'
 import { WEAPON_STYLE, stageOf } from '../../config/weapons'
-import { MAX_STARS } from '../../config/balance'
+import { MAX_STAR } from '../../config/balance'
 import { AURA_CLASS } from '../tierStyle'
 import Defs from './Defs'
 import Shatter from './Shatter'
@@ -20,7 +20,7 @@ interface Props {
 
 /** 歸零時外部需在碎裂結束(此時間)後才更新星級 */
 export const SHATTER_MS = 900
-const DURATION: Record<WeaponEvent['kind'], number> = { success: 1000, evolve: 1000, drop: 1000, reset: SHATTER_MS + 60, red: 1000 }
+const DURATION: Record<WeaponEvent['kind'], number> = { success: 1000, evolve: 1000, keep: 500, drop: 1000, reset: SHATTER_MS + 60, red: 1000 }
 const FADE_MS = 450
 
 export default function WeaponArt({ stars, auraTier, event, className = '' }: Props) {
@@ -60,6 +60,12 @@ export default function WeaponArt({ stars, auraTier, event, className = '' }: Pr
         rate(1)
       }
     }
+    if (event.kind === 'keep') {
+      el.animate(
+        [0, -4, 4, -3, 2, 0].map((x) => ({ transform: `translateX(${x}px)` })),
+        { duration: DURATION.keep / (event.speed ?? 1) },
+      )
+    }
     if (event.kind === 'drop') {
       el.animate(
         [{ transform: 'translateY(0)' }, { transform: 'translateY(16px)', offset: 0.3 }, { transform: 'translateY(12px)', offset: 0.7 }, { transform: 'translateY(0)' }],
@@ -72,7 +78,7 @@ export default function WeaponArt({ stars, auraTier, event, className = '' }: Pr
   const Art = STAGES[stage]
   const Prev = view.prev === null ? null : STAGES[view.prev]
   /** 光環強度隨星級 */
-  const strength = 0.35 + (0.65 * stars) / MAX_STARS
+  const strength = 0.35 + (0.65 * stars) / MAX_STAR
 
   return (
     <svg

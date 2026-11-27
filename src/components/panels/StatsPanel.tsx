@@ -23,7 +23,7 @@ export function StatGrid({ stats }: { stats: RunStats }) {
   )
 }
 
-export default function StatsPanel({ stats }: { stats: RunStats }) {
+export default function StatsPanel({ stats, log }: { stats: RunStats; log: string[] }) {
   const [open, setOpen] = useState(false)
   return (
     <section className="panel px-3 py-1">
@@ -39,9 +39,9 @@ export default function StatsPanel({ stats }: { stats: RunStats }) {
         <div className="mt-2 space-y-3">
           <StatGrid stats={stats} />
           <ol className="max-h-40 space-y-1 overflow-y-auto text-sm text-muted">
-            {stats.log.length === 0 && <li>尚無紀錄</li>}
-            {stats.log.map((l, i) => (
-              <li key={i}>{stats.log.length - i}. {l}</li>
+            {log.length === 0 && <li>尚無紀錄</li>}
+            {log.map((l, i) => (
+              <li key={i}>{log.length - i}. {l}</li>
             ))}
           </ol>
         </div>

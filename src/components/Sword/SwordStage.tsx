@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { AffixSlot, Tier, WeaponEvent } from '../../types'
-import { MAX_STARS } from '../../config/balance'
+import { MAX_STAR } from '../../config/balance'
 import { WEAPON_STYLE, stageOf } from '../../config/weapons'
 import { AURA_CLASS, highestTier, slotTier } from '../tierStyle'
 import WeaponArt from './WeaponArt'
@@ -13,20 +13,22 @@ interface Props {
   stars: number
   slots: [AffixSlot, AffixSlot, AffixSlot]
   fx: WeaponEvent | null
+  /** 星級條上方的結果文字;不傳則不佔位 */
+  message?: string
   /** 覆寫光環色(預覽用);undefined = 最高階詞條色 */
   auraTier?: Tier | null
   /** 桌面版撐滿父層高度(主畫面用) */
   fill?: boolean
 }
 
-const OVERLAY_MS: Record<WeaponEvent['kind'], number> = { success: 900, evolve: 1000, drop: 1000, reset: 1400, red: 1000 }
+const OVERLAY_MS: Record<WeaponEvent['kind'], number> = { success: 900, evolve: 1000, keep: 600, drop: 1000, reset: 1400, red: 1000 }
 
 const SPARKS = Array.from({ length: 10 }, (_, i) => {
   const a = (i / 10) * Math.PI * 2
   return { dx: Math.cos(a) * 110, dy: Math.sin(a) * 110 }
 })
 
-export default function SwordStage({ stars, slots, fx, auraTier, fill = false }: Props) {
+export default function SwordStage({ stars, slots, fx, message, auraTier, fill = false }: Props) {
   const { quality } = useQuality()
   const active = useActiveEvent(fx, OVERLAY_MS)
   const k = active?.kind
@@ -49,7 +51,7 @@ export default function SwordStage({ stars, slots, fx, auraTier, fill = false }:
       {/* 放射狀背光 */}
       <div
         className="stage-backlight pointer-events-none absolute inset-0"
-        style={{ opacity: 0.1 + (0.3 * stars) / MAX_STARS }}
+        style={{ opacity: 0.1 + (0.3 * stars) / MAX_STAR }}
         aria-hidden
       />
 
@@ -97,6 +99,9 @@ export default function SwordStage({ stars, slots, fx, auraTier, fill = false }:
       )}
 
       <div className="relative shrink-0">
+        {message !== undefined && (
+          <div className="min-h-[24px] text-center font-bold text-ink" aria-live="polite">{message}</div>
+        )}
         <StarBar stars={stars} />
       </div>
     </div>
