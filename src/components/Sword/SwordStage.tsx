@@ -14,6 +14,8 @@ interface Props {
   fx: WeaponEvent | null
   /** 覆寫光環色(預覽用);undefined = 最高階詞條色 */
   auraTier?: Tier | null
+  /** 桌面版撐滿父層高度(主畫面用) */
+  fill?: boolean
 }
 
 const OVERLAY_MS: Record<WeaponEvent['kind'], number> = { success: 900, evolve: 1000, drop: 1000, reset: 1400, red: 1000 }
@@ -23,7 +25,7 @@ const SPARKS = Array.from({ length: 10 }, (_, i) => {
   return { dx: Math.cos(a) * 110, dy: Math.sin(a) * 110 }
 })
 
-export default function SwordStage({ stars, slots, fx, auraTier }: Props) {
+export default function SwordStage({ stars, slots, fx, auraTier, fill = false }: Props) {
   const { quality } = useQuality()
   const active = useActiveEvent(fx, OVERLAY_MS)
   const k = active?.kind
@@ -32,7 +34,7 @@ export default function SwordStage({ stars, slots, fx, auraTier }: Props) {
   const sparks = quality === 'high' ? SPARKS : SPARKS.filter((_, i) => i % 2 === 0)
 
   return (
-    <div className={`panel aura-scope relative mx-auto w-full max-w-md overflow-hidden p-4 ${AURA_CLASS(aura)}`}>
+    <div className={`panel aura-scope relative mx-auto flex w-full flex-col overflow-hidden px-3 py-2 ${fill ? 'lg:min-h-0 lg:flex-1' : 'max-w-md'} ${AURA_CLASS(aura)}`}>
       {/* 放射狀背光 */}
       <div
         className="stage-backlight pointer-events-none absolute inset-0"
@@ -40,7 +42,7 @@ export default function SwordStage({ stars, slots, fx, auraTier }: Props) {
         aria-hidden
       />
 
-      <div className="relative flex items-start justify-between">
+      <div className="pointer-events-none absolute inset-x-3 top-2 z-10 flex items-start justify-between">
         <span className="text-sm text-muted">{WEAPON_STYLE.name} · {WEAPON_STYLE.stages[stageOf(stars)].name}</span>
         <span
           key={fx?.n ?? 0}
@@ -50,8 +52,11 @@ export default function SwordStage({ stars, slots, fx, auraTier }: Props) {
         </span>
       </div>
 
-      <div className="relative mx-auto -mt-6 aspect-[180/430] w-full max-w-[230px]">
-        <WeaponArt stars={stars} auraTier={aura} event={fx} className="h-full w-full" />
+      <div className={`relative h-[45dvh] shrink-0 ${fill ? 'lg:h-auto lg:min-h-0 lg:flex-1 lg:shrink' : ''}`}>
+        <WeaponArt stars={stars} auraTier={aura} event={fx} className="absolute inset-0 h-full w-full" />
+        <div className="absolute left-[min(50%+7.5rem,100%-2.75rem)] top-1/2 z-10 -translate-y-1/2">
+          <GemSlots slots={slots} fx={animated ? active : null} />
+        </div>
 
         {animated && (k === 'success' || k === 'evolve') && (
           <div key={active!.n} className="pointer-events-none absolute inset-0" aria-hidden>
@@ -80,8 +85,7 @@ export default function SwordStage({ stars, slots, fx, auraTier }: Props) {
         </div>
       )}
 
-      <div className="relative space-y-3 pt-8">
-        <GemSlots slots={slots} fx={animated ? active : null} />
+      <div className="relative shrink-0">
         <StarBar stars={stars} />
       </div>
     </div>

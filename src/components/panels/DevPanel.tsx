@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { FxQuality, Tier, WeaponEvent } from '../../types'
 import { MAX_STARS } from '../../config/balance'
 import { useQuality } from '../Sword/quality'
@@ -33,9 +34,21 @@ const AURAS: [Tier | null | undefined, string, string][] = [
 
 export default function DevPanel({ stars, disabled, onSetStars, onFx, auraPreview, onAuraPreview }: Props) {
   const { chosen, reduced, setQuality } = useQuality()
+  const [open, setOpen] = useState(false)
   return (
-    <section className="space-y-2 border-2 border-dashed border-tier-gold/70 bg-tier-gold/5 p-3">
-      <h3 className="font-bold text-tier-gold">⚠ 開發測試面板(之後會移除)</h3>
+    <section className="space-y-2 border-2 border-dashed border-tier-gold/70 bg-tier-gold/5 px-3 py-1">
+      <h3>
+        <button
+          className="flex min-h-[44px] w-full items-center justify-between font-bold text-tier-gold"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          <span>⚠ 開發測試面板(之後會移除)</span>
+          <span>{open ? '▲' : '▼'}</span>
+        </button>
+      </h3>
+      {open && (
+      <>
       <label className="flex items-center gap-3 text-sm">
         星級 +{stars}
         <input
@@ -74,6 +87,8 @@ export default function DevPanel({ stars, disabled, onSetStars, onFx, auraPrevie
           </button>
         ))}
       </div>
+      </>
+      )}
     </section>
   )
 }

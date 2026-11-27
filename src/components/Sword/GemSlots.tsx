@@ -7,7 +7,7 @@ const GEM = 'M20 3L34 14V28L20 41L6 28V14Z'
 /** 詞條寶石欄:3 顆寶石對應 3 條詞條,空欄為暗孔 */
 export default function GemSlots({ slots, fx }: { slots: AffixSlot[]; fx: WeaponEvent | null }) {
   return (
-    <ul className="flex justify-center gap-6" aria-label="詞條寶石欄">
+    <ul className="flex flex-col gap-4" aria-label="詞條寶石欄">
       {slots.map((s, i) => {
         const t = slotTier(s)
         const burst = fx?.kind === 'red' && fx.slot === i
