@@ -31,10 +31,9 @@
 ```
 src/
   types.ts          型別(先於一切)
-  config/           balance.ts 機率與消耗 / affixes.ts 詞條清單 / modes.ts 模式與額度 / grading.ts 評級
+  config/           balance.ts 衝星機率與消耗 / reroll.ts 洗練機率與消耗 / affixes.ts 詞條清單 / modes.ts 模式與額度 / grading.ts 評級
   core/             純函式遊戲邏輯(衝星、洗練、評級)
   components/       UI 元件(Sword/、panels/、modals/、screens/)
-  mock/             UI 階段使用的假資料
 ```
 
 ## 遊戲規則(定案版)
@@ -99,6 +98,6 @@ src/
 - [x] 10. 版面一頁化、模式選擇修正、數字輸入元件
 - [x] 11. 洗練視窗、鎖定確認、自動功能介面(假資料)
 - [x] 20. 衝星規則 + 自動升星(含測試)
-- [ ] 21. 詞條與洗練規則
+- [x] 21. 詞條與洗練規則
 - [ ] 22. 模式、資源、結算
 - [ ] 23. 統計面板完善與測試
