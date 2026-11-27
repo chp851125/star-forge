@@ -206,3 +206,69 @@ describe('洗練', () => {
     expect(run(pending, adopt).lastEvent).toMatchObject({ id: 2, kind: 'red', slot: 0 })
   })
 })
+
+describe('actionsUsed 與里程碑', () => {
+  const rolls = Array<number>(RANDOMS_PER_REROLL).fill(0)
+  const reroll: GameAction = { type: 'REROLL', kind: 'lv', rolls }
+  const keep: GameAction = { type: 'DECIDE_KEEP' }
+
+  it('衝星、洗練、繼續各 +1,鎖定與解除不算', () => {
+    const lock: GameAction = { type: 'TOGGLE_LOCK', slotIndex: 1 }
+    const s = run(createGame(infinite, slots), win, reroll, keep, { type: 'CONTINUE', rolls }, keep,
+      { type: 'CLOSE_REROLL' }, lock, lock)
+    expect(s.actionsUsed).toBe(3)
+  })
+
+  it('自動升星每次嘗試算 1', () => {
+    const s = run(at(0), { type: 'AUTO_START', target: 5, protect: false }, win, win, { type: 'AUTO_CANCEL' })
+    expect(s.actionsUsed).toBe(2)
+  })
+
+  it('次數用完後不可衝星或洗練,仍可鎖定', () => {
+    const mode: GameMode = { kind: 'limited', preset: 'turns', quota: { starStone: 0, rerollStone: 0 }, turns: 1 }
+    const s = run(createGame(mode, slots), win)
+    expect(gameReducer(s, win)).toBe(s)
+    expect(gameReducer(s, reroll)).toBe(s)
+    expect(run(s, { type: 'TOGGLE_LOCK', slotIndex: 1 }).weapon.slots[1]?.locked).toBe(true)
+  })
+
+  it('首次到達才記錄累計值,掉星後再到達不重複', () => {
+    const before = run(createGame(infinite, slots), reroll, keep, { type: 'CLOSE_REROLL' }, win, win, win, win)
+    expect(before.milestones).toEqual([])
+    const reached = run(before, win)
+    const spent = ENHANCE_TABLE.slice(0, 5).reduce((a, r) => a + r.cost, 0)
+    expect(reached.milestones).toEqual([{ star: 5, enhanceStoneSpent: spent, rerollStoneSpent: 2, attempts: 5 }])
+    const again = run(reached, lose, win)
+    expect(again.weapon.stars).toBe(5)
+    expect(again.milestones).toEqual(reached.milestones)
+  })
+})
+
+describe('結算', () => {
+  const finish: GameAction = { type: 'FINISH_RUN', reason: 'manual' }
+
+  it('產生快照', () => {
+    const s = run(at(9), finish)
+    expect(s.settlement).toMatchObject({ reason: 'manual', affixScore: 5, starScore: 9, score: 14, grade: 'B' })
+  })
+
+  it('結算後各 action 被忽略', () => {
+    const s = run(at(3), finish)
+    const rolls = Array<number>(RANDOMS_PER_REROLL).fill(0)
+    const actions: GameAction[] = [
+      win, finish,
+      { type: 'REROLL', kind: 'lv', rolls },
+      { type: 'CONTINUE', rolls },
+      { type: 'TOGGLE_LOCK', slotIndex: 1 },
+      { type: 'AUTO_START', target: 10, protect: false },
+      { type: 'SET_STARS', stars: 15 },
+    ]
+    for (const a of actions) expect(gameReducer(s, a)).toBe(s)
+  })
+
+  it('START_RUN 完整重置', () => {
+    const s = run(at(4), win, finish, { type: 'START_RUN', mode: infinite })
+    expect(s).toEqual(createGame(infinite))
+    expect(s).toMatchObject({ actionsUsed: 0, milestones: [], settlement: null })
+  })
+})

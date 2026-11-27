@@ -1,14 +1,12 @@
 import { useState } from 'react'
-import type { GameMode, RunStats, Weapon } from './types'
+import type { GameMode } from './types'
 import ModeSelect from './components/screens/ModeSelect'
 import MainScreen from './components/screens/MainScreen'
-import ResultScreen from './components/screens/ResultScreen'
 import { QualityProvider } from './components/Sword/quality'
 
 type Screen =
   | { name: 'mode' }
   | { name: 'main'; mode: GameMode; run: number }
-  | { name: 'result'; mode: GameMode; weapon: Weapon; stats: RunStats }
 
 export default function App() {
   return (
@@ -25,16 +23,6 @@ function Screens() {
   if (screen.name === 'mode') {
     return <ModeSelect onStart={(mode) => setScreen({ name: 'main', mode, run: Date.now() })} />
   }
-  if (screen.name === 'main') {
-    const { mode } = screen
-    return (
-      <MainScreen
-        key={screen.run}
-        mode={mode}
-        onRestart={restart}
-        onFinish={(weapon, stats) => setScreen({ name: 'result', mode, weapon, stats })}
-      />
-    )
-  }
-  return <ResultScreen mode={screen.mode} weapon={screen.weapon} stats={screen.stats} onRestart={restart} />
+  // 結算畫面由 MainScreen 依結算快照顯示
+  return <MainScreen key={screen.run} mode={screen.mode} onRestart={restart} />
 }

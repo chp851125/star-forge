@@ -1,14 +1,16 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
-import type { GameMode, RerollMode, Resources, RunStats, Tier, Weapon, WeaponEvent } from '../../types'
+import type { GameMode, RerollMode, Resources, Tier, Weapon, WeaponEvent } from '../../types'
 import { MAX_STAR } from '../../config/balance'
 import { WEAPON_STYLE } from '../../config/weapons'
 import { AFFIXES } from '../../config/affixes'
-import { LOCK_COST, REROLL_BASE_COST } from '../../config/reroll'
+import { LOCK_COST } from '../../config/reroll'
 import { AUTO_STAR_SPEED } from '../../config/auto'
 import { describeEnhance, getEnhanceCost } from '../../core/enhance'
 import { RANDOMS_PER_REROLL, canAffixChange, canValueReroll, countLocked, getRerollCost } from '../../core/reroll'
+import { getActionLimit } from '../../core/settlement'
 import { createGame, gameReducer, isUnlimited } from '../../state/gameReducer'
-import SwordStage from '../Sword/SwordStage'
+import SwordStage, { OVERLAY_MS } from '../Sword/SwordStage'
+import { useActiveEvent } from '../Sword/useActiveEvent'
 import { SHATTER_MS } from '../Sword/WeaponArt'
 import { useQuality } from '../Sword/quality'
 import TopBar from '../panels/TopBar'
@@ -19,19 +21,22 @@ import StatsPanel from '../panels/StatsPanel'
 import DevPanel from '../panels/DevPanel'
 import CompareModal from '../modals/CompareModal'
 import { useAutoEnhance } from '../auto/useAutoEnhance'
+import { useSettlement } from '../settlement/useSettlement'
+import ResultScreen from './ResultScreen'
 
 interface Props {
   mode: GameMode
-  onFinish: (w: Weapon, s: RunStats) => void
   onRestart: () => void
 }
 
 type Slots = Weapon['slots']
 const randomRolls = () => Array.from({ length: RANDOMS_PER_REROLL }, () => Math.random())
 
-export default function MainScreen({ mode, onFinish, onRestart }: Props) {
+export default function MainScreen({ mode, onRestart }: Props) {
   const [state, dispatch] = useReducer(gameReducer, mode, (m) => createGame(m))
-  const { weapon, resources: res, turnsLeft: turns, stats, log, lastEvent, lastResult, autoSession } = state
+  const { weapon, resources: res, stats, log, lastEvent, lastResult, autoSession, settlement } = state
+  const actionLimit = getActionLimit(mode)
+  const turns = actionLimit === undefined ? undefined : actionLimit - state.actionsUsed
   const { rerollPhase, pendingReroll, lastRerollKind, lastDecision } = state
   const unlimited = isUnlimited(mode)
   const [tab, setTab] = useState<'star' | 'reroll'>('star')
@@ -63,11 +68,18 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     return () => clearTimeout(t)
   }, [busy, lastEvent?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const animating = !!useActiveEvent(fx, OVERLAY_MS) || busy
+  const { exhausted, notice } = useSettlement(state, dispatch, animating)
+  const finishBlocked =
+    autoRunning ? '自動升星進行中'
+    : rerollPhase !== 'idle' ? '洗練視窗開啟中'
+    : busy ? '動畫播放中'
+    : null
+
   const rerollCost = getRerollCost(countLocked(weapon.slots))
   const noStone = !unlimited && res.starStone < (getEnhanceCost(stars, protect) ?? 0)
   const noReroll = !unlimited && res.rerollStone < rerollCost
   const noTurns = turns !== undefined && turns <= 0
-  const exhausted = noTurns || (!unlimited && res.starStone < (getEnhanceCost(stars, false) ?? 0) && res.rerollStone < REROLL_BASE_COST)
   const rerollBlocked = noTurns ? '操作次數已用完' : noReroll ? '洗練石不足' : null
   const canContinue =
     !rerollBlocked && (lastRerollKind === 'lv' ? canValueReroll(weapon.slots) : canAffixChange(weapon.slots))
@@ -122,16 +134,17 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
     </button>
   )
 
+  if (settlement) return <ResultScreen result={settlement} onRestart={onRestart} />
+
   return (
     <div className="lg:h-dvh lg:overflow-hidden">
     <main ref={main} className="mx-auto flex max-w-6xl flex-col gap-3 p-3 lg:h-full">
       <TopBar
-        mode={mode} resources={res} used={used} turnsLeft={turns}
+        mode={mode} used={used} turnsLeft={turns}
         autoOn={autoOn} onAuto={toggleAuto} autoLocked={autoRunning}
-        finishDisabled={busy || autoRunning}
-        onFinish={() => onFinish(weapon, stats)} onRestart={onRestart}
+        finishBlocked={finishBlocked}
+        onFinish={() => dispatch({ type: 'FINISH_RUN', reason: 'manual' })} onRestart={onRestart}
       />
-      {exhausted && <div className="border border-tier-red bg-tier-red/10 p-2 text-center text-tier-red" role="alert">資源已耗盡</div>}
 
       <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-2 lg:grid-rows-1">
         <section className="flex min-w-0 flex-col gap-2 lg:min-h-0">
@@ -160,7 +173,8 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
                 onProtect={setProtect}
                 onStar={() => dispatch({ type: 'ENHANCE', protect, roll: Math.random() })}
                 auto={autoOn ? {
-                  session: autoSession,
+                  // 即將自動結算時不顯示摘要卡,併入結算統計
+                  session: exhausted && !autoRunning ? null : autoSession,
                   lastResult,
                   target: Math.min(MAX_STAR, Math.max(stars + 1, starTarget)),
                   onTarget: setStarTarget,
@@ -180,20 +194,26 @@ export default function MainScreen({ mode, onFinish, onRestart }: Props) {
                 slots={weapon.slots}
                 disabled={busy || autoRunning || exhausted || rerollPhase !== 'idle'}
                 rerollBlocked={rerollBlocked}
-                lockBlocked={noTurns ? '操作次數已用完' : !unlimited && res.rerollStone < LOCK_COST ? '洗練石不足,無法鎖定' : null}
+                lockBlocked={!unlimited && res.rerollStone < LOCK_COST ? '洗練石不足,無法鎖定' : null}
                 stoneText={stoneText}
                 onToggleLock={(i) => dispatch({ type: 'TOGGLE_LOCK', slotIndex: i })}
                 onReroll={doReroll}
               />
             )}
           </div>
-          <StatsPanel stats={stats} log={log} />
+          <StatsPanel stats={stats} log={log} milestones={state.milestones} />
           <DevPanel
             stars={stars} disabled={busy || autoRunning} onSetStars={devSet} onFx={devFx}
             auraPreview={auraPreview} onAuraPreview={setAuraPreview}
           />
         </section>
       </div>
+
+      {notice && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center" role="alert">
+          <div className="panel px-10 py-4 text-2xl font-extrabold tracking-widest text-tier-red">{notice}</div>
+        </div>
+      )}
 
       <span className="sr-only">{weapon.slots.map(affixText).join(',')}</span>
     </main>

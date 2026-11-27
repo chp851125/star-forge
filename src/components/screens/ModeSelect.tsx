@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { GameMode } from '../../types'
-import { DEFAULT_CUSTOM, DEFAULT_TURNS, QUOTA_PRESETS, STONE_INPUT, TURNS_INPUT } from '../../config/modes'
+import {
+  DEFAULT_CUSTOM, DEFAULT_TURNS, PRESET_LABEL, QUOTA_PRESETS, STONE_INPUT, TURNS_INPUT, TURNS_PRESETS,
+} from '../../config/modes'
 import NumberStepper from '../ui/NumberStepper'
 
 type Choice = 'infinite' | 'easy' | 'normal' | 'hard' | 'custom' | 'turns'
@@ -55,13 +57,16 @@ export default function ModeSelect({ onStart }: { onStart: (m: GameMode) => void
 
         <div className="pt-1 text-sm text-muted">限定模式</div>
         {QUOTA_PRESETS.map((p) => (
-          <Opt {...opt} key={p.id} id={p.id} title={`${p.label}(升星石 ${p.quota.starStone} / 洗練石 ${p.quota.rerollStone})`} />
+          <Opt {...opt} key={p.id} id={p.id} title={`${PRESET_LABEL[p.id]}(升星石 ${p.quota.starStone} / 洗練石 ${p.quota.rerollStone})`} />
         ))}
         <Opt {...opt} id="custom" title="自訂額度">
           <NumberStepper label="升星石" {...STONE_INPUT.starStone} value={custom.starStone} onChange={(n) => setCustom((c) => ({ ...c, starStone: n }))} />
           <NumberStepper label="洗練石" {...STONE_INPUT.rerollStone} value={custom.rerollStone} onChange={(n) => setCustom((c) => ({ ...c, rerollStone: n }))} />
         </Opt>
         <Opt {...opt} id="turns" title="次數制(限制操作次數)">
+          <p className="text-sm text-muted">
+            石頭不限量 · {TURNS_PRESETS.map((p) => `${PRESET_LABEL[p.id]} ${p.turns}`).join(' / ')}
+          </p>
           <NumberStepper label="操作次數" {...TURNS_INPUT} value={turns} onChange={setTurns} />
         </Opt>
       </section>
