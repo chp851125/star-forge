@@ -37,5 +37,3 @@ export const ZONE_LABEL: Record<ZoneKind, string> = {
   drop: '掉星區:失敗可能 -1 星',
   reset: '歸零區:失敗可能歸零回 +0',
 }
-
-export const REROLL_BASE_COST = 1

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ENHANCE_TABLE } from '../config/balance'
+import { RANDOMS_PER_REROLL } from '../core/reroll'
 import type { GameMode, Weapon } from '../types'
 import { createGame, gameReducer, type GameAction, type GameState } from './gameReducer'
 
@@ -97,5 +98,111 @@ describe('autoSession', () => {
 
   it('目標不高於目前星級時不啟動', () => {
     expect(run(at(10), start).autoSession).toBeNull()
+  })
+})
+
+describe('洗練', () => {
+  const stones = (rerollStone: number): GameMode => ({ kind: 'limited', preset: 'custom', quota: { starStone: 0, rerollStone } })
+  /** 0 = 全部欄位出現、Lv1;接近 1 = 只出現第 1 欄、Lv15 */
+  const rolls = (v: number) => Array<number>(RANDOMS_PER_REROLL).fill(v)
+  const reroll: GameAction = { type: 'REROLL', kind: 'lv', rolls: rolls(0) }
+  const change: GameAction = { type: 'REROLL', kind: 'affix', rolls: rolls(0.999999) }
+  const cont: GameAction = { type: 'CONTINUE', rolls: rolls(0) }
+  const adopt: GameAction = { type: 'DECIDE_ADOPT' }
+  const keep: GameAction = { type: 'DECIDE_KEEP' }
+  const close: GameAction = { type: 'CLOSE_REROLL' }
+  const lock = (slotIndex: number): GameAction => ({ type: 'TOGGLE_LOCK', slotIndex })
+
+  it('扣石頭並進入 pending,詞條尚未改變', () => {
+    const s = run(createGame(stones(10), slots), reroll)
+    expect(s.rerollPhase).toBe('pending')
+    expect(s.lastRerollKind).toBe('lv')
+    expect(s.resources.rerollStone).toBe(8) // 鎖定 1 條
+    expect(s.weapon.slots).toEqual(slots)
+  })
+
+  it('pending 時不可再洗、繼續、關閉或切換鎖定', () => {
+    const s = run(createGame(infinite, slots), reroll)
+    for (const act of [reroll, cont, close, lock(1)]) expect(gameReducer(s, act)).toBe(s)
+  })
+
+  it('DECIDE_ADOPT 整組套用並進入 decided,不影響星級', () => {
+    const pending = run(at(7), change)
+    const s = run(pending, adopt)
+    expect(s.weapon.slots).toEqual(pending.pendingReroll!.candidate)
+    expect(s.weapon.stars).toBe(7)
+    expect(s.rerollPhase).toBe('decided')
+    expect(s.pendingReroll).toBeNull()
+  })
+
+  it('DECIDE_KEEP 不改詞條;decided 時決定無效', () => {
+    const s = run(createGame(infinite, slots), reroll, keep)
+    expect(s.weapon.slots).toEqual(slots)
+    expect(s.rerollPhase).toBe('decided')
+    expect(gameReducer(s, adopt)).toBe(s)
+  })
+
+  it('CONTINUE 僅在 decided 有效,沿用上次種類並扣石頭', () => {
+    const idle = createGame(stones(10), slots)
+    expect(gameReducer(idle, cont)).toBe(idle)
+    const s = run(idle, reroll, keep, cont)
+    expect(s.rerollPhase).toBe('pending')
+    expect(s.pendingReroll?.kind).toBe('lv')
+    expect(s.resources.rerollStone).toBe(6)
+  })
+
+  it('CLOSE_REROLL 僅在 decided 有效', () => {
+    const idle = createGame(infinite, slots)
+    expect(gameReducer(idle, close)).toBe(idle)
+    expect(run(idle, reroll, keep, close).rerollPhase).toBe('idle')
+  })
+
+  it('洗練石不足時狀態不變', () => {
+    const idle = createGame(stones(1), slots)
+    expect(gameReducer(idle, reroll)).toBe(idle)
+    const decided = run(createGame(stones(2), slots), reroll, keep)
+    expect(gameReducer(decided, cont)).toBe(decided)
+  })
+
+  it('無限模式不扣但計入累計消耗', () => {
+    const s = run(createGame(infinite, slots), reroll)
+    expect(s.resources.rerollStone).toBe(0)
+    expect(s.stats.rerollStoneUsed).toBe(2)
+  })
+
+  it('鎖定扣 1、解除免費', () => {
+    const locked = run(createGame(stones(10), slots), lock(1))
+    expect(locked.weapon.slots[1]?.locked).toBe(true)
+    expect(locked.resources.rerollStone).toBe(9)
+    const unlocked = run(locked, lock(1))
+    expect(unlocked.weapon.slots[1]?.locked).toBe(false)
+    expect(unlocked.resources.rerollStone).toBe(9)
+    expect(unlocked.stats.rerollStoneUsed).toBe(1)
+  })
+
+  it('空欄、石頭不足、非 idle 時不可鎖定', () => {
+    const idle = createGame(stones(0), slots)
+    expect(gameReducer(idle, lock(2))).toBe(idle)
+    expect(gameReducer(idle, lock(1))).toBe(idle)
+    const decided = run(createGame(infinite, slots), reroll, keep)
+    expect(gameReducer(decided, lock(1))).toBe(decided)
+  })
+
+  it('統計:次數、鎖定洗練、金 / 紅洗出數、洗練石消耗', () => {
+    // 第 1 次不鎖定洗出紅階(維持),之後鎖定第 1 欄再洗出藍階
+    const s = run(createGame(infinite), change, keep, close, change, adopt, close, lock(0), cont, change)
+    expect(s.stats).toMatchObject({ rerolls: 3, lockedRerolls: 1, redRolled: 2, goldPlusRolled: 2, rerollStoneUsed: 5 })
+  })
+
+  it('金階計入金階以上,不計入紅階', () => {
+    // Lv 權重 0.95 落在金階
+    const s = run(createGame(infinite, slots), { type: 'REROLL', kind: 'lv', rolls: rolls(0.95) })
+    expect(s.stats).toMatchObject({ goldPlusRolled: 1, redRolled: 0 })
+  })
+
+  it('洗出紅詞條時發出紅光事件,採用時再發一次', () => {
+    const pending = run(createGame(infinite), change)
+    expect(pending.lastEvent).toMatchObject({ id: 1, kind: 'red', slot: 0 })
+    expect(run(pending, adopt).lastEvent).toMatchObject({ id: 2, kind: 'red', slot: 0 })
   })
 })

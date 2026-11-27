@@ -1,8 +1,14 @@
-import type { AutoStopReason, EnhanceOutcome, GameMode, Resources, RunStats, Weapon, WeaponEvent } from '../types'
+import type {
+  AutoStopReason, EnhanceOutcome, GameMode, RerollMode, RerollPhase, Resources, RunStats, Weapon, WeaponEvent,
+} from '../types'
 import { MAX_STAR } from '../config/balance'
+import { LOCK_COST } from '../config/reroll'
 import { stageOf } from '../config/weapons'
 import { describeEnhance, nextConsecutiveDrops, rollEnhance, type EnhanceResult } from '../core/enhance'
-import { addEnhance, emptyStats } from '../core/stats'
+import {
+  canAffixChange, canValueReroll, countLocked, getRerollCost, getTier, rollAffixChange, rolledSlots, rollValueReroll,
+} from '../core/reroll'
+import { addEnhance, addLock, addReroll, emptyStats } from '../core/stats'
 
 export interface GameEvent {
   /** 遞增流水號,讓同一事件可重複觸發特效 */
@@ -43,10 +49,16 @@ export interface GameState {
   lastResult: (EnhanceResult & { from: number }) | null
   lastEvent: GameEvent | null
   autoSession: AutoSession | null
+  rerollPhase: RerollPhase
+  /** 尚未決定的洗練結果 */
+  pendingReroll: { kind: RerollMode; candidate: Weapon['slots'] } | null
+  lastRerollKind: RerollMode | null
+  /** 本次洗練的決定,僅 decided 時有值 */
+  lastDecision: 'adopt' | 'keep' | null
 }
 
 export type GameAction =
-  | { type: 'START_RUN'; mode: GameMode; slots: Weapon['slots'] }
+  | { type: 'START_RUN'; mode: GameMode; slots?: Weapon['slots'] }
   /** roll:呼叫端提供的 [0, 1) 亂數,讓 reducer 保持純函式 */
   | { type: 'ENHANCE'; protect: boolean; roll: number }
   | { type: 'AUTO_START'; target: number; protect: boolean }
@@ -56,14 +68,22 @@ export type GameAction =
   /** SET_STARS / PREVIEW_FX 供開發面板與特效預覽,不計入統計 */
   | { type: 'SET_STARS'; stars: number }
   | { type: 'PREVIEW_FX'; kind: WeaponEvent['kind']; to?: number; slot?: number }
-  /** 以下兩個供洗練(目前為假資料)使用 */
+  /** rolls:呼叫端提供的 [0, 1) 亂數(RANDOMS_PER_REROLL 個) */
+  | { type: 'REROLL'; kind: RerollMode; rolls: number[] }
+  | { type: 'CONTINUE'; rolls: number[] }
+  | { type: 'DECIDE_ADOPT' }
+  | { type: 'DECIDE_KEEP' }
+  | { type: 'CLOSE_REROLL' }
+  | { type: 'TOGGLE_LOCK'; slotIndex: number }
+  /** 供開發面板使用 */
   | { type: 'SET_SLOTS'; slots: Weapon['slots'] }
-  | { type: 'REROLL_RECORD'; message: string; stones?: number; rerolls?: number }
 
 /** 石頭是否不限量(無限模式與次數制) */
 export const isUnlimited = (m: GameMode) => m.kind === 'infinite' || m.preset === 'turns'
 
-export function createGame(mode: GameMode, slots: Weapon['slots']): GameState {
+const MODE_LABEL: Record<RerollMode, string> = { affix: '詞條變更', lv: '數值重洗' }
+
+export function createGame(mode: GameMode, slots: Weapon['slots'] = [null, null, null]): GameState {
   return {
     mode,
     weapon: { stars: 0, slots: [...slots] as Weapon['slots'] },
@@ -75,6 +95,10 @@ export function createGame(mode: GameMode, slots: Weapon['slots']): GameState {
     lastResult: null,
     lastEvent: null,
     autoSession: null,
+    rerollPhase: 'idle',
+    pendingReroll: null,
+    lastRerollKind: null,
+    lastDecision: null,
   }
 }
 
@@ -116,6 +140,76 @@ function enhance(s: GameState, protect: boolean, roll: number): GameState {
   }
 }
 
+/** 洗出紅詞條時發出紅光爆發事件 */
+function redEvent(s: GameState, rolled: Weapon['slots'][number][]): GameEvent | null {
+  const slot = rolled.findIndex((a) => a && getTier(a.lv) === 'red')
+  if (slot < 0) return s.lastEvent
+  const { stars } = s.weapon
+  return nextEvent(s, { kind: 'red', from: stars, to: stars, evolved: false, auto: false, slot })
+}
+
+function reroll(s: GameState, kind: RerollMode, rolls: number[]): GameState {
+  const { slots } = s.weapon
+  if (s.rerollPhase === 'pending') return s
+  if (s.turnsLeft !== undefined && s.turnsLeft <= 0) return s
+  if (!(kind === 'affix' ? canAffixChange(slots) : canValueReroll(slots))) return s
+  const lockedCount = countLocked(slots)
+  const cost = getRerollCost(lockedCount)
+  const unlimited = isUnlimited(s.mode)
+  if (!unlimited && s.resources.rerollStone < cost) return s
+
+  let i = 0
+  const rng = () => rolls[i++]
+  const candidate = kind === 'affix' ? rollAffixChange({ slots, rng }) : rollValueReroll({ slots, rng })
+  const rolled = rolledSlots(slots, candidate)
+  return {
+    ...s,
+    resources: unlimited ? s.resources : { ...s.resources, rerollStone: s.resources.rerollStone - cost },
+    turnsLeft: spendTurn(s.turnsLeft),
+    stats: addReroll(s.stats, { cost, lockedCount, rolled }),
+    log: [`洗練 ${MODE_LABEL[kind]}`, ...s.log],
+    lastEvent: redEvent(s, rolled),
+    rerollPhase: 'pending',
+    pendingReroll: { kind, candidate },
+    lastRerollKind: kind,
+    lastDecision: null,
+  }
+}
+
+function decide(s: GameState, adopt: boolean): GameState {
+  const p = s.pendingReroll
+  if (s.rerollPhase !== 'pending' || !p) return s
+  return {
+    ...s,
+    weapon: adopt ? { ...s.weapon, slots: p.candidate } : s.weapon,
+    log: [`洗練 ${MODE_LABEL[p.kind]}(${adopt ? '效果變更' : '效果維持'})`, ...s.log],
+    lastEvent: adopt ? redEvent(s, rolledSlots(s.weapon.slots, p.candidate)) : s.lastEvent,
+    rerollPhase: 'decided',
+    pendingReroll: null,
+    lastDecision: adopt ? 'adopt' : 'keep',
+  }
+}
+
+function toggleLock(s: GameState, index: number): GameState {
+  const slot = s.weapon.slots[index]
+  if (s.rerollPhase !== 'idle' || !slot) return s
+  const lock = !slot.locked
+  const unlimited = isUnlimited(s.mode)
+  if (lock && s.turnsLeft !== undefined && s.turnsLeft <= 0) return s
+  if (lock && !unlimited && s.resources.rerollStone < LOCK_COST) return s
+  const slots = [...s.weapon.slots] as Weapon['slots']
+  slots[index] = { ...slot, locked: lock }
+  const next = { ...s, weapon: { ...s.weapon, slots } }
+  if (!lock) return { ...next, log: [`解除鎖定詞條 ${index + 1}`, ...s.log] }
+  return {
+    ...next,
+    resources: unlimited ? s.resources : { ...s.resources, rerollStone: s.resources.rerollStone - LOCK_COST },
+    turnsLeft: spendTurn(s.turnsLeft),
+    stats: addLock(s.stats, LOCK_COST),
+    log: [`鎖定詞條 ${index + 1}`, ...s.log],
+  }
+}
+
 export function gameReducer(s: GameState, a: GameAction): GameState {
   switch (a.type) {
     case 'START_RUN':
@@ -151,15 +245,17 @@ export function gameReducer(s: GameState, a: GameAction): GameState {
     }
     case 'SET_SLOTS':
       return { ...s, weapon: { ...s.weapon, slots: a.slots } }
-    case 'REROLL_RECORD': {
-      const stones = a.stones ?? 0
-      return {
-        ...s,
-        resources: isUnlimited(s.mode) ? s.resources : { ...s.resources, rerollStone: s.resources.rerollStone - stones },
-        turnsLeft: stones ? spendTurn(s.turnsLeft) : s.turnsLeft,
-        stats: { ...s.stats, rerolls: s.stats.rerolls + (a.rerolls ?? 0), rerollStoneUsed: s.stats.rerollStoneUsed + stones },
-        log: [a.message, ...s.log],
-      }
-    }
+    case 'REROLL':
+      return reroll(s, a.kind, a.rolls)
+    case 'CONTINUE':
+      return s.rerollPhase === 'decided' && s.lastRerollKind ? reroll(s, s.lastRerollKind, a.rolls) : s
+    case 'DECIDE_ADOPT':
+      return decide(s, true)
+    case 'DECIDE_KEEP':
+      return decide(s, false)
+    case 'CLOSE_REROLL':
+      return s.rerollPhase === 'decided' ? { ...s, rerollPhase: 'idle', lastDecision: null } : s
+    case 'TOGGLE_LOCK':
+      return toggleLock(s, a.slotIndex)
   }
 }
