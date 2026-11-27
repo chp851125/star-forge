@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { AffixSlot, Tier, WeaponEvent } from '../../types'
 import { MAX_STARS } from '../../config/balance'
 import { WEAPON_STYLE, stageOf } from '../../config/weapons'
@@ -32,9 +33,19 @@ export default function SwordStage({ stars, slots, fx, auraTier, fill = false }:
   const animated = quality !== 'off'
   const aura = auraTier !== undefined ? auraTier : highestTier(slots.map(slotTier))
   const sparks = quality === 'high' ? SPARKS : SPARKS.filter((_, i) => i % 2 === 0)
+  const root = useRef<HTMLDivElement>(null)
+
+  // 加速本次事件的一次性動畫;無限循環的待機動畫不受影響
+  useEffect(() => {
+    const speed = fx?.speed ?? 1
+    if (speed === 1) return
+    for (const a of root.current!.getAnimations({ subtree: true })) {
+      if (a.effect?.getTiming().iterations !== Infinity) a.updatePlaybackRate(speed)
+    }
+  }, [fx?.n]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className={`panel aura-scope relative mx-auto flex w-full flex-col overflow-hidden px-3 py-2 ${fill ? 'lg:min-h-0 lg:flex-1' : 'max-w-md'} ${AURA_CLASS(aura)}`}>
+    <div ref={root} className={`panel aura-scope relative mx-auto flex w-full flex-col overflow-hidden px-3 py-2 ${fill ? 'lg:min-h-0 lg:flex-1' : 'max-w-md'} ${AURA_CLASS(aura)}`}>
       {/* 放射狀背光 */}
       <div
         className="stage-backlight pointer-events-none absolute inset-0"

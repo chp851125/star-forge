@@ -46,19 +46,6 @@ export type StarResult = 'success' | 'evolve' | 'drop' | 'reset'
 export type StarOutcome = StarResult | 'keep'
 export type RerollMode = 'affix' | 'lv'
 
-/** 洗練視窗內的一次新舊對照 */
-export interface RerollResult {
-  /** 流水號,變動時重播列動畫 */
-  n: number
-  mode: RerollMode
-  before: Weapon['slots']
-  after: Weapon['slots']
-  /** pending 待玩家決定 / discarded 自動放棄 / auto 自動洗練已處理 */
-  status: 'pending' | 'discarded' | 'auto'
-  /** 逐列是否採用 */
-  checks: boolean[]
-}
-
 export type ZoneKind = 'safe' | 'drop' | 'reset'
 export type Grade = 'S' | 'A' | 'B' | 'C'
 
@@ -82,6 +69,8 @@ export interface WeaponEvent {
   n: number
   /** 洗出紅詞條的欄位 */
   slot?: number
+  /** 特效播放倍速(自動升星加速),預設 1 */
+  speed?: number
 }
 
 export type FxQuality = 'high' | 'medium' | 'low' | 'off'

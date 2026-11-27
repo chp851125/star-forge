@@ -1,33 +1,28 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { AffixSlot, RerollMode, RerollResult, Weapon } from '../../types'
+import { useEffect, useRef, type ReactNode } from 'react'
+import type { AffixSlot, RerollMode, Weapon } from '../../types'
 import { AFFIX_MAP, affixValue, tierOfLv } from '../../config/affixes'
 import { TIER_BG, TIER_BORDER, TIER_TEXT } from '../tierStyle'
-import ConfirmPopover from '../ui/ConfirmPopover'
-import Switch from '../ui/Switch'
 
 interface Props {
-  slots: Weapon['slots']
-  result: RerollResult | null
+  /** 每洗一次遞增,只重播新結果列的動畫(視窗本身不重掛,避免閃爍) */
+  rollId: number
+  mode: RerollMode
+  before: Weapon['slots']
+  after: Weapon['slots']
+  /** null = 尚未決定;之後按鈕換成繼續 / 關閉視窗 */
+  applied: boolean | null
+  /** 再洗一次的消耗 */
   cost: number
-  /** 標頭的洗練石資訊 */
   stoneText: string
-  canReroll: Record<RerollMode, boolean>
-  /** 有值時鎖定的「確定」disabled 並顯示原因 */
-  lockBlocked: string | null
-  autoDiscard: boolean
-  onAutoDiscard: (v: boolean) => void
-  /** 自動洗練進行中 */
-  running: boolean
-  onStop: () => void
-  onReroll: (mode: RerollMode) => void
-  onToggleCheck: (i: number) => void
+  canContinue: boolean
   onApply: () => void
   onKeep: () => void
-  onToggleLock: (i: number) => void
+  /** 以同一種洗練方式再洗一次 */
+  onContinue: () => void
   onClose: () => void
-  /** 自動數值重洗區塊;自動功能關閉時不傳 */
-  auto?: ReactNode
 }
+
+const TITLE: Record<RerollMode, string> = { affix: '詞條變更', lv: '數值重洗' }
 
 type Diff = { text: string; color: string }
 
@@ -35,9 +30,9 @@ function diffOf(a: AffixSlot, b: AffixSlot): Diff {
   const up = 'text-zone-safe'
   const flat = 'text-muted'
   if (!a && !b) return { text: '＝', color: flat }
-  if (!a) return { text: '新增', color: up }
+  if (!a) return { text: '新', color: 'text-cyan' }
   if (!b) return { text: '消失', color: flat }
-  if (a.id !== b.id) return { text: '變更', color: 'text-cyan' }
+  if (a.id !== b.id) return { text: '新', color: 'text-cyan' }
   if (b.lv > a.lv) return { text: '▲', color: up }
   if (b.lv < a.lv) return { text: '▼', color: flat }
   return { text: '＝', color: flat }
@@ -63,204 +58,105 @@ const Key = ({ k }: { k: string }) => (
   <kbd className="ml-2 hidden border border-current px-1 text-xs font-normal opacity-80 lg:inline">{k}</kbd>
 )
 
-/** 洗練視窗:持續開啟,新舊對照就地顯示 */
+/** 洗練結果:新舊對照,選擇改變或維持後可繼續洗或關閉 */
 export default function CompareModal(props: Props) {
-  const { slots, result, cost, running, canReroll } = props
-  const pending = result?.status === 'pending' ? result : null
+  const { mode, before, after, applied, canContinue } = props
+  const decided = applied !== null
   const dialog = useRef<HTMLDivElement>(null)
-  const closeBtn = useRef<HTMLButtonElement>(null)
-  const keepBtn = useRef<HTMLButtonElement>(null)
-  const lockBtns = useRef<(HTMLButtonElement | null)[]>([])
-  const [lockAsk, setLockAsk] = useState<number | null>(null)
-  /** 放棄新結果的確認;close = 確認後一併關閉視窗 */
-  const [discardAsk, setDiscardAsk] = useState<{ anchor: HTMLElement; close: boolean } | null>(null)
   useEffect(() => dialog.current?.focus(), [])
 
-  const lockDisabled = (i: number) => !slots[i] || !!pending || running
-  const askLock = (i: number) => !lockDisabled(i) && setLockAsk(i)
-
-  const requestClose = () => {
-    if (running) return
-    if (pending) setDiscardAsk({ anchor: closeBtn.current!, close: true })
-    else props.onClose()
-  }
+  // 快捷鍵:決定前 改變 / 維持,決定後 繼續 / 關閉視窗
+  const primary = () => (!decided ? props.onApply() : canContinue && props.onContinue())
+  const secondary = () => (decided ? props.onClose() : props.onKeep())
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (lockAsk !== null || discardAsk || e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
       const el = e.target as HTMLElement
-      if (el.matches('input, textarea, select, [contenteditable="true"]')) return
-      const k = e.key.toLowerCase()
-      // 以 Tab 聚焦在按鈕上時,Enter / Space 交給原生行為
-      if ((k === 'enter' || k === ' ') && el.matches('button') && dialog.current?.contains(el)) return
-      if (!['q', 'w', ' ', 'enter', 'escape', '1', '2', '3'].includes(k)) return
+      // 以 Tab 聚焦在視窗按鈕上時,Enter / Space 交給原生行為
+      if ((e.key === 'Enter' || e.key === ' ') && el.matches('button') && dialog.current?.contains(el)) return
+      if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Escape') return
       e.preventDefault()
       if (e.repeat) return
-      if (k === 'escape') {
-        if (running) props.onStop()
-        else if (pending) setDiscardAsk({ anchor: keepBtn.current!, close: false })
-        else props.onClose()
-      } else if (running) return
-      else if (k === 'q') canReroll.affix && props.onReroll('affix')
-      else if (k === 'w') canReroll.lv && props.onReroll('lv')
-      else if (k === ' ' || k === 'enter') pending && props.onApply()
-      else askLock(Number(k) - 1)
+      if (e.key === 'Escape') secondary()
+      else primary()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  const asked = lockAsk === null ? null : slots[lockAsk]
-
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-bg/60 lg:bg-transparent" onClick={requestClose} aria-hidden />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-3">
       <div
         ref={dialog}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="洗練視窗"
-        // 滑鼠點按鈕不取走焦點,快捷鍵維持可用
+        aria-label={`${TITLE[mode]}結果`}
+        // 滑鼠點按鈕不取走焦點,快捷鍵維持一致
         onMouseDown={(e) => (e.target as HTMLElement).closest('button') && e.preventDefault()}
-        className={`fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col border-t border-cyan bg-panel shadow-glowStrong outline-none lg:inset-y-0 lg:left-auto lg:h-auto lg:max-h-none lg:w-[min(34rem,48vw)] lg:border-l lg:border-t-0 ${props.auto ? 'h-[90dvh]' : ''}`}
+        // overflow-x-hidden:新結果滑入時超出右緣,不可冒出水平捲軸讓視窗跳動
+        className="max-h-full w-full max-w-xl space-y-3 overflow-y-auto overflow-x-hidden border border-cyan bg-panel p-3 shadow-glowStrong outline-none"
       >
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-cyan/30 px-3 py-1">
-          <div>
-            <h2 className="text-lg font-bold text-cyan">洗練視窗</h2>
-            <p className="text-xs text-muted">{props.stoneText}</p>
-          </div>
-          <button ref={closeBtn} className="btn" aria-label="關閉洗練視窗" disabled={running} onClick={requestClose}>✕</button>
-        </header>
-
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-          <ul className="space-y-2">
-            {slots.map((s, i) => {
-              const old = result ? result.before[i] : s
-              const next = result?.after[i] ?? null
-              // 鎖定列與沒有洗到的列不顯示新結果
-              const rolled = !!result && result.after[i] !== result.before[i]
-              const better = rolled && !!next && (!old || next.lv > old.lv)
-              const diff = rolled ? diffOf(old, next) : null
-              const discarded = rolled && result.status === 'discarded'
-              const red = rolled && !!next && tierOfLv(next.lv) === 'red'
+        <div>
+          <h2 className="text-lg font-bold text-cyan" aria-live="polite">
+            {TITLE[mode]} · {decided ? (applied ? '已改變' : '已維持') : '新舊對照'}
+          </h2>
+          <p className="text-xs text-muted">{props.stoneText}</p>
+        </div>
+        <ul className="space-y-2">
+          {before.map((old, i) => {
+            const next = after[i]
+            // 決定後只顯示目前詞條,不再做新舊對照
+            if (decided) {
               return (
-                <li
-                  key={i}
-                  className="grid h-16 grid-cols-[2.75rem_minmax(0,1fr)_1rem_minmax(0,1fr)_2.75rem] items-center gap-1 sm:gap-2"
-                >
-                  <button
-                    ref={(el) => { lockBtns.current[i] = el }}
-                    className={`btn relative h-14 px-0 ${s?.locked ? 'bg-cyan/40' : ''}`}
-                    disabled={lockDisabled(i)}
-                    aria-pressed={!!s?.locked}
-                    aria-label={`詞條 ${i + 1} ${!s ? '空欄不能鎖定' : s.locked ? '解除鎖定' : '鎖定'}`}
-                    onClick={() => askLock(i)}
-                  >
-                    <span aria-hidden>{!s ? '—' : s.locked ? '🔒' : '🔓'}</span>
-                    <span className="absolute bottom-0 right-1 hidden text-xs font-normal lg:inline" aria-hidden>{i + 1}</span>
-                  </button>
-                  {/* 目前效果永遠顯示實際詞條 */}
-                  <div key={`old-${discarded ? result.n : 'x'}`} className={discarded ? 'fx-discard' : ''}>
-                    <Cell slot={s} />
-                  </div>
-                  <span className="text-center text-cyan" aria-hidden>→</span>
-                  {rolled ? (
-                    <div key={result.n} className={`fx-slide-in min-w-0 ${better && !discarded ? 'fx-better' : ''}`}>
-                      <Cell
-                        slot={next}
-                        className={`${red ? 'fx-red-burst' : ''} ${discarded ? 'opacity-60' : ''}`}
-                        extra={
-                          discarded
-                            ? <span className="truncate text-muted">{old && next ? `Lv ${old.lv} → ${next.lv},` : ''}自動放棄</span>
-                            : <span className={`font-bold ${diff!.color}`}>{diff!.text}</span>
-                        }
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex h-14 items-center justify-center border border-dashed border-muted/30 text-sm text-muted">
-                      {s?.locked ? '已鎖定' : '—'}
-                    </div>
-                  )}
-                  {pending && rolled ? (
-                    <button
-                      className={`h-14 border text-xl font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan ${pending.checks[i] ? 'border-zone-safe bg-zone-safe/20 text-zone-safe' : 'border-muted/50 text-muted'}`}
-                      aria-pressed={pending.checks[i]}
-                      aria-label={`詞條 ${i + 1} 採用新結果`}
-                      onClick={() => props.onToggleCheck(i)}
-                    >
-                      {pending.checks[i] ? '✓' : '✗'}
-                    </button>
-                  ) : (
-                    <span />
-                  )}
+                <li key={i} className="flex h-16 flex-col justify-center">
+                  <Cell slot={applied ? next : old} />
                 </li>
               )
-            })}
-          </ul>
-
-          <div className="grid grid-cols-2 gap-2">
-            <button className="btn-primary min-h-[52px]" disabled={running || !canReroll.affix} onClick={() => props.onReroll('affix')}>
-              詞條變更 · 耗 {cost}<Key k="Q" />
-            </button>
-            <button className="btn-primary min-h-[52px]" disabled={running || !canReroll.lv} onClick={() => props.onReroll('lv')}>
-              數值重洗 · 耗 {cost}<Key k="W" />
-            </button>
-            <button className="btn min-h-[52px]" disabled={!pending} onClick={props.onApply}>
-              採用新結果<Key k="Space" />
-            </button>
-            <button ref={keepBtn} className="btn min-h-[52px]" disabled={!pending} onClick={props.onKeep}>
-              維持舊的<Key k="Esc" />
-            </button>
-          </div>
-
-          <Switch
-            checked={props.autoDiscard}
-            onChange={props.onAutoDiscard}
-            disabled={running}
-            label="自動放棄較差結果"
-            hint="僅數值重洗:沒有任何一列更高就維持舊的"
-          />
-          {props.auto}
+            }
+            // 鎖定列與沒有洗到的列不顯示新結果
+            const rolled = next !== old
+            const better = rolled && !!next && (!old || next.lv > old.lv)
+            const diff = diffOf(old, next)
+            const red = rolled && !!next && tierOfLv(next.lv) === 'red'
+            return (
+              <li key={i} className="grid h-16 grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] items-center gap-2">
+                <Cell slot={old} />
+                <span className="text-center text-cyan" aria-hidden>→</span>
+                {rolled ? (
+                  <div key={props.rollId} className={`fx-slide-in min-w-0 ${better ? 'fx-better' : ''}`}>
+                    <Cell
+                      slot={next}
+                      className={red ? 'fx-red-burst' : ''}
+                      extra={<span className={`font-bold ${diff.color}`}>{diff.text}</span>}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-14 items-center justify-center border border-dashed border-muted/30 text-sm text-muted">
+                    {old?.locked ? '🔒 已鎖定' : '—'}
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+        {/* 四顆按鈕永遠顯示、位置固定,不可用時 disabled */}
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn-primary min-h-[52px]" disabled={decided} onClick={props.onApply}>
+            改變{!decided && <Key k="Space" />}
+          </button>
+          <button className="btn min-h-[52px]" disabled={decided} onClick={props.onKeep}>
+            維持{!decided && <Key k="Esc" />}
+          </button>
+          <button className="btn-primary col-span-2 min-h-[52px]" disabled={!decided || !canContinue} onClick={props.onContinue}>
+            繼續 · 耗 {props.cost}{decided && <Key k="Space" />}
+          </button>
+          <button className="btn col-span-2 min-h-[52px]" disabled={!decided} onClick={props.onClose}>
+            關閉視窗{decided && <Key k="Esc" />}
+          </button>
         </div>
       </div>
-
-      {lockAsk !== null && asked && (
-        <ConfirmPopover
-          anchor={lockBtns.current[lockAsk]!}
-          message={
-            asked.locked
-              ? '解除鎖定後,此詞條會在洗練時被重洗,每次洗練消耗 −1。確定解除?'
-              : '鎖定此詞條將消耗 1 洗練石,之後每次洗練消耗 +1。確定鎖定?'
-          }
-          blocked={asked.locked ? null : props.lockBlocked}
-          onConfirm={() => {
-            props.onToggleLock(lockAsk)
-            setLockAsk(null)
-            dialog.current?.focus()
-          }}
-          onCancel={() => {
-            setLockAsk(null)
-            dialog.current?.focus()
-          }}
-        />
-      )}
-      {discardAsk && (
-        <ConfirmPopover
-          anchor={discardAsk.anchor}
-          message="放棄目前的新結果?"
-          onConfirm={() => {
-            props.onKeep()
-            setDiscardAsk(null)
-            if (discardAsk.close) props.onClose()
-            else dialog.current?.focus()
-          }}
-          onCancel={() => {
-            setDiscardAsk(null)
-            dialog.current?.focus()
-          }}
-        />
-      )}
-    </>
+    </div>
   )
 }
