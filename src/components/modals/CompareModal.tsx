@@ -95,7 +95,8 @@ export default function CompareModal(props: Props) {
         aria-label={`${TITLE[mode]}結果`}
         // 滑鼠點按鈕不取走焦點,快捷鍵維持一致
         onMouseDown={(e) => (e.target as HTMLElement).closest('button') && e.preventDefault()}
-        className="max-h-full w-full max-w-xl space-y-3 overflow-y-auto border border-cyan bg-panel p-3 shadow-glowStrong outline-none"
+        // overflow-x-hidden:新結果滑入時超出右緣,不可冒出水平捲軸讓視窗跳動
+        className="max-h-full w-full max-w-xl space-y-3 overflow-y-auto overflow-x-hidden border border-cyan bg-panel p-3 shadow-glowStrong outline-none"
       >
         <div>
           <h2 className="text-lg font-bold text-cyan" aria-live="polite">

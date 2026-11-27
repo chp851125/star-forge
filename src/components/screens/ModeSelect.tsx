@@ -49,7 +49,7 @@ export default function ModeSelect({ onStart }: { onStart: (m: GameMode) => void
       <section className="panel space-y-3 p-4">
         <Opt {...opt} id="infinite" title="無限模式">
           <p className="bevel border border-cyan/40 bg-bg/60 px-4 py-3 text-sm">
-            資源無限制:升星石與洗練石不設上限。結算時會顯示你總共花了多少。
+            資源無限制。
           </p>
         </Opt>
 
