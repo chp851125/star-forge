@@ -107,6 +107,14 @@ export default function CompareModal(props: Props) {
         <ul className="space-y-2">
           {before.map((old, i) => {
             const next = after[i]
+            // 決定後只顯示目前詞條,不再做新舊對照
+            if (decided) {
+              return (
+                <li key={i} className="flex h-16 flex-col justify-center">
+                  <Cell slot={applied ? next : old} />
+                </li>
+              )
+            }
             // 鎖定列與沒有洗到的列不顯示新結果
             const rolled = next !== old
             const better = rolled && !!next && (!old || next.lv > old.lv)
