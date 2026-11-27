@@ -1,9 +1,17 @@
 import type { GameMode, Resources } from '../../types'
+import Switch from '../ui/Switch'
 
 interface Props {
   mode: GameMode
   resources: Resources
+  /** 本局累計消耗 */
+  used: Resources
   turnsLeft?: number
+  autoOn: boolean
+  onAuto: (v: boolean) => void
+  /** 自動流程進行中,不可切換 */
+  autoLocked: boolean
+  finishDisabled: boolean
   onFinish: () => void
   onRestart: () => void
 }
@@ -14,26 +22,45 @@ export function modeLabel(m: GameMode): string {
   return `限定模式 · ${names[m.preset]}`
 }
 
-function Res({ label, value }: { label: string; value: string }) {
+function Res({ label, items }: { label: string; items: [string, string][] }) {
   return (
-    <div className="flex items-baseline gap-2 whitespace-nowrap border border-cyan/30 bg-bg/60 px-3 py-1">
-      <span className="text-sm text-muted">{label}</span>
-      <span className="text-xl font-bold text-cyan">{value}</span>
+    <div className="border border-cyan/30 bg-bg/60 px-3 py-0.5">
+      <div className="text-xs text-muted">{label}</div>
+      <div className="flex flex-wrap gap-x-3 text-sm">
+        {items.map(([k, v]) => (
+          <span key={k} className="whitespace-nowrap">
+            {k} <span className="text-base font-bold text-cyan">{v}</span>
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
 
-export default function TopBar({ mode, resources, turnsLeft, onFinish, onRestart }: Props) {
-  const inf = mode.kind === 'infinite' || mode.preset === 'turns'
+export default function TopBar(p: Props) {
+  const { mode, resources, used, turnsLeft } = p
+  const quota = mode.kind === 'limited' && mode.preset !== 'turns' ? mode.quota : null
   return (
-    <header className="panel flex shrink-0 flex-wrap items-center gap-3 px-4 py-2 lg:h-16 lg:flex-nowrap">
-      <span className="border border-cyan/60 bg-cyan/10 px-3 py-1 text-sm font-semibold text-cyan">{modeLabel(mode)}</span>
-      <Res label="升星石" value={inf ? '∞' : String(resources.starStone)} />
-      <Res label="洗練石" value={inf ? '∞' : String(resources.rerollStone)} />
-      {turnsLeft !== undefined && <Res label="剩餘次數" value={String(turnsLeft)} />}
-      <div className="ml-auto flex gap-2">
-        <button className="btn-primary" onClick={onFinish}>完成打造</button>
-        <button className="btn" onClick={onRestart}>重新開始</button>
+    <header className="panel flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 lg:h-16 lg:flex-nowrap">
+      <span className="whitespace-nowrap border border-cyan/60 bg-cyan/10 px-3 py-1 text-sm font-semibold text-cyan">{modeLabel(mode)}</span>
+      {quota ? (
+        <Res
+          label="剩餘 / 總額"
+          items={[
+            ['升星石', `${resources.starStone} / ${quota.starStone}`],
+            ['洗練石', `${resources.rerollStone} / ${quota.rerollStone}`],
+          ]}
+        />
+      ) : (
+        <Res label="本局累計消耗" items={[['升星石', String(used.starStone)], ['洗練石', String(used.rerollStone)]]} />
+      )}
+      {mode.kind === 'limited' && turnsLeft !== undefined && (
+        <Res label="剩餘 / 總次數" items={[['次數', `${turnsLeft} / ${mode.turns}`]]} />
+      )}
+      <div className="ml-auto flex flex-wrap items-center gap-2 lg:flex-nowrap">
+        <Switch checked={p.autoOn} onChange={p.onAuto} disabled={p.autoLocked} label="自動功能" hint="自己慢慢衝,或交給自動" />
+        <button className="btn-primary whitespace-nowrap" disabled={p.finishDisabled} onClick={p.onFinish}>完成打造</button>
+        <button className="btn whitespace-nowrap" onClick={p.onRestart}>重新開始</button>
       </div>
     </header>
   )
