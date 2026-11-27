@@ -19,6 +19,8 @@ import StarPanel from '../panels/StarPanel'
 import RerollPanel from '../panels/RerollPanel'
 import StatsPanel from '../panels/StatsPanel'
 import DevPanel from '../panels/DevPanel'
+import QualitySelect from '../ui/QualitySelect'
+import { buildRunSummary } from '../../core/summary'
 import CompareModal from '../modals/CompareModal'
 import { useAutoEnhance } from '../auto/useAutoEnhance'
 import { useSettlement } from '../settlement/useSettlement'
@@ -32,6 +34,8 @@ interface Props {
 
 type Slots = Weapon['slots']
 const randomRolls = () => Array.from({ length: RANDOMS_PER_REROLL }, () => Math.random())
+/** 開發面板:開發模式或網址 #dev 才顯示 */
+const showDevPanel = () => import.meta.env.DEV || window.location.hash === '#dev'
 
 export default function MainScreen({ mode, onRestart }: Props) {
   const [state, dispatch] = useReducer(gameReducer, mode, (m) => createGame(m))
@@ -203,11 +207,14 @@ export default function MainScreen({ mode, onRestart }: Props) {
               />
             )}
           </div>
-          <StatsPanel stats={stats} log={log} milestones={state.milestones} />
-          <DevPanel
-            stars={stars} disabled={busy || autoRunning} onSetStars={devSet} onFx={devFx}
-            auraPreview={auraPreview} onAuraPreview={setAuraPreview}
-          />
+          <StatsPanel summary={buildRunSummary(state)} log={log} />
+          <QualitySelect />
+          {showDevPanel() && (
+            <DevPanel
+              stars={stars} disabled={busy || autoRunning} onSetStars={devSet} onFx={devFx}
+              auraPreview={auraPreview} onAuraPreview={setAuraPreview}
+            />
+          )}
         </section>
       </div>
 

@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import type { FxQuality, Tier, WeaponEvent } from '../../types'
+import type { Tier, WeaponEvent } from '../../types'
 import { MAX_STAR } from '../../config/balance'
-import { useQuality } from '../Sword/quality'
 import { play } from '../../audio/engine'
 import { SOUND_IDS } from '../../audio/sounds'
 
@@ -23,8 +22,6 @@ const BTNS: [WeaponEvent['kind'], string][] = [
   ['red', '洗出紅詞條'],
 ]
 
-const QUALITIES: [FxQuality, string][] = [['high', '高'], ['medium', '中'], ['low', '低'], ['off', '關']]
-
 const AURAS: [Tier | null | undefined, string, string][] = [
   [undefined, '自動', 'text-ink'],
   ['blue', '藍', 'text-tier-blue'],
@@ -35,7 +32,6 @@ const AURAS: [Tier | null | undefined, string, string][] = [
 ]
 
 export default function DevPanel({ stars, disabled, onSetStars, onFx, auraPreview, onAuraPreview }: Props) {
-  const { chosen, reduced, setQuality } = useQuality()
   const [open, setOpen] = useState(false)
   return (
     <section className="space-y-2 border-2 border-dashed border-tier-gold/70 bg-tier-gold/5 px-3 py-1">
@@ -45,7 +41,7 @@ export default function DevPanel({ stars, disabled, onSetStars, onFx, auraPrevie
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
-          <span>⚠ 開發測試面板(之後會移除)</span>
+          <span>⚠ 開發測試面板</span>
           <span>{open ? '▲' : '▼'}</span>
         </button>
       </h3>
@@ -65,17 +61,6 @@ export default function DevPanel({ stars, disabled, onSetStars, onFx, auraPrevie
           <button key={k} className="btn" disabled={disabled} onClick={() => onFx(k)}>{label}</button>
         ))}
       </div>
-      <label className="flex flex-wrap items-center gap-3 text-sm">
-        特效品質
-        <select
-          value={chosen}
-          onChange={(e) => setQuality(e.target.value as FxQuality)}
-          className="h-11 border border-cyan/50 bg-bg px-2 text-ink"
-        >
-          {QUALITIES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-        </select>
-        {reduced && <span className="text-muted">系統已開啟「減少動態」,套用「關」</span>}
-      </label>
       <div className="flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="階級色預覽">
         階級色
         {AURAS.map(([v, label, color]) => (

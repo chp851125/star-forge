@@ -25,6 +25,7 @@ export default {
         ink: '#e6f7ff',
         muted: '#8aa6bd',
         tier: { blue: '#4aa3ff', purple: '#b06cff', gold: '#ffc83d', red: '#ff4a4a' },
+        log: { drop: '#ff9f43' },
         zone: { safe: '#3ddc97', drop: '#ffc83d', reset: '#ff4a4a' },
       },
       fontFamily: {

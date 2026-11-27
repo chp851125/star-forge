@@ -68,6 +68,7 @@ describe('buildShareText', () => {
     starScore: 12,
     grade: 'A',
     stats: { ...emptyStats(), starAttempts: 85, successes: 40, drops: 30, resets: 3, starStoneUsed: 389, rerollStoneUsed: 142 },
+    actionsUsed: 85,
     milestones: [],
   }
 

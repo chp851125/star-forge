@@ -47,6 +47,12 @@ export interface RunStats {
   maxFailStreak: number
   highestStar: number
   rerolls: number
+  /** rerolls 依種類拆分 */
+  affixRerolls: number
+  lvRerolls: number
+  /** 洗練結果的決定次數 */
+  rerollAdopts: number
+  rerollKeeps: number
   /** 鎖定條數 ≥ 1 時的洗練次數 */
   lockedRerolls: number
   /** 洗出金階以上(含紅)的詞條數,不論是否採用 */
@@ -54,6 +60,8 @@ export interface RunStats {
   redRolled: number
   starStoneUsed: number
   rerollStoneUsed: number
+  /** rerollStoneUsed 中的鎖定花費 */
+  lockStoneUsed: number
 }
 
 export type FinishReason = 'manual' | 'exhausted' | 'actions'
@@ -76,8 +84,16 @@ export interface Settlement {
   starScore: number
   grade: Grade
   stats: RunStats
+  actionsUsed: number
   milestones: Milestone[]
 }
+
+/** 操作紀錄;auto = 自動升星產生,tier = 洗出(或鎖定)詞條的最高階 */
+export type LogEntry = { id: number } & (
+  | { type: 'enhance'; auto: boolean; from: number; to: number; outcome: EnhanceOutcome; pity: boolean }
+  | { type: 'reroll'; kind: RerollMode; adopted: boolean; changes: { before: AffixSlot; after: AffixSlot }[]; tier: Tier | null }
+  | { type: 'lock'; slot: number; locked: boolean; tier: Tier }
+)
 
 export type EnhanceOutcome = 'success' | 'keep' | 'drop' | 'reset'
 /** 衝星特效種類(跨階段成功為 evolve) */
