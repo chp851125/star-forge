@@ -200,11 +200,11 @@ export default function CompareModal(props: Props) {
         </ul>
         {/* 四顆按鈕永遠顯示、位置固定,不可用時 disabled */}
         <div className="grid grid-cols-2 gap-2">
-          <button className="btn-primary min-h-[52px]" disabled={decided} data-sound="none" onClick={apply}>
-            改變{!decided && <Key k="Space" />}
-          </button>
           <button ref={keepBtn} className="btn min-h-[52px]" disabled={decided} data-sound="none" onClick={keep}>
             維持{!decided && <Key k="Esc" />}
+          </button>
+          <button className="btn-primary min-h-[52px]" disabled={decided} data-sound="none" onClick={apply}>
+            改變{!decided && <Key k="Space" />}
           </button>
           <button className="btn-primary col-span-2 min-h-[52px]" disabled={!decided || !canContinue} data-sound="none" onClick={again}>
             繼續 · 耗 {props.cost}{decided && <Key k="Space" />}
